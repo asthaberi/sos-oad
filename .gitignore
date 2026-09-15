@@ -1,0 +1,52 @@
+# --- data and artifacts: NEVER committed ---
+# Canonical-format datasets, raw downloads, feature caches, run outputs.
+# These are large (IPN Hand alone is ~800k frames) and are reproducible from
+# scripts/ + configs/. See CLAUDE.md §4.
+data/
+raw/
+runs/
+outputs/
+checkpoints/
+wandb/
+*.npy
+*.npz
+*.pt
+*.pth
+*.ckpt
+*.tfevents.*
+
+# Exception: small synthetic fixtures used by the schema/causality tests.
+!tests/fixtures/**
+!tests/fixtures/**/*.npy
+
+# --- python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+.python-version
+
+# --- tooling ---
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.ipynb_checkpoints/
+
+# --- editors / OS ---
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# --- secrets ---
+.env
+*.key
+credentials.json
