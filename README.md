@@ -58,7 +58,32 @@ on a laptop and on a cluster.
 Commands are added here as each stage lands, so this section always reproduces the current state
 of the thesis.
 
-<!-- STAGE 0 --> _(pending)_
+### Stage 0 — canonical format
+
+Generate the synthetic fixture (a small known-good dataset in the canonical format) and validate
+it. This needs no dataset download and is the Stage 0 gate:
+
+```powershell
+python scripts/make_fixture.py --out tests/fixtures/synthetic --force
+python scripts/validate_dataset.py --root tests/fixtures/synthetic
+pytest tests/ -v
+```
+
+Validate any canonical dataset, with strictness that ratchets up per stage:
+
+```powershell
+python scripts/validate_dataset.py --root data/ipn_hand                    # Stage 1
+python scripts/validate_dataset.py --root data/ipn_hand --require-splits   # Stage 2
+python scripts/validate_dataset.py --root data/ipn_hand --require-poses    # Stage 3
+```
+
+Configs compose a base with a dataset group, overridable from the command line:
+
+```powershell
+python scripts/validate_dataset.py --config configs/base.yaml --set dataset=ipn_hand seed=7
+```
+
+<!-- STAGE 1 --> _(pending)_
 
 ## Causality is tested
 

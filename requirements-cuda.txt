@@ -1,0 +1,18 @@
+# CUDA build of PyTorch, for whatever GPU box training actually runs on.
+#
+# Install AFTER requirements.txt; this replaces the CPU torch wheel with a CUDA one.
+# The author's laptop has an AMD iGPU and cannot use this file -- it exists so the
+# training machine is a one-command setup once that machine is chosen.
+#
+#   pip install -r requirements.txt
+#   pip install -r requirements-cuda.txt
+#
+# Adjust the index URL to match the cluster's CUDA runtime:
+#   cu118 -> https://download.pytorch.org/whl/cu118
+#   cu121 -> https://download.pytorch.org/whl/cu121
+#   cu124 -> https://download.pytorch.org/whl/cu124
+
+--extra-index-url https://download.pytorch.org/whl/cu121
+
+torch==2.5.1
+torchvision==0.20.1

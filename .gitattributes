@@ -1,0 +1,21 @@
+# Normalise line endings so the repo is identical on Windows and on the Linux GPU box
+# the training will eventually run on. Without this, a checkout on either side rewrites
+# every file and diffs become unreadable.
+* text=auto eol=lf
+
+*.py    text eol=lf
+*.yaml  text eol=lf
+*.yml   text eol=lf
+*.md    text eol=lf
+*.txt   text eol=lf
+*.csv   text eol=lf
+
+# Binary: never touch these.
+*.npy   binary
+*.npz   binary
+*.pt    binary
+*.pth   binary
+*.png   binary
+*.jpg   binary
+*.mp4   binary
+*.avi   binary

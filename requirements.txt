@@ -1,0 +1,24 @@
+# Core dependencies. Python 3.11.
+#
+# CPU-safe by design: these install and run anywhere, including the author's laptop,
+# which has no NVIDIA GPU. CUDA pins live in requirements-cuda.txt and are layered on
+# top for whatever training box is used. See CLAUDE.md section 4.
+#
+# Versions are pinned exactly. A thesis number that cannot be reproduced because a
+# transitive dependency moved is not a thesis number.
+#
+# This file grows per stage rather than front-loading every dependency the project will
+# eventually need; each addition is tied to the stage that justified it.
+
+# --- Stage 0: canonical format, config, seeding, run logging ---
+numpy==1.26.4            # <2.0 deliberately: the mmcv/MMPose stack needed at Stage 3
+                         # does not yet build against numpy 2.x
+pandas==2.2.3            # annotations.csv
+PyYAML==6.0.2            # classes.txt sidecar metadata, meta.yaml
+omegaconf==2.3.0         # config composition and dotlist overrides
+torch==2.5.1             # CPU wheel on Windows/macOS from PyPI by default
+tensorboard==2.18.0      # Hard Rule 4
+tqdm==4.67.1
+
+# --- test / lint ---
+pytest==8.3.4

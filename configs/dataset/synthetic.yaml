@@ -1,0 +1,24 @@
+# Synthetic dataset -- test fixture, not a real dataset.
+#
+# Exists so the canonical format, the validator, the causality test and every downstream
+# stage can be exercised without touching 800k real frames, and before IPN Hand is even
+# downloaded. Never report a metric computed on this.
+
+name: synthetic
+adapter: synthetic
+fps: 30.0
+frame_size: [640, 480]
+
+gesture_classes: [wave, point, fist]   # `none` is prepended at index 0 automatically
+
+num_videos: 8
+num_subjects: 4
+feature_dim: 16
+num_joints: 5
+
+frames_per_video: [300, 600]
+gestures_per_video: [3, 6]
+gesture_duration: [30, 90]
+min_gap: 20
+noise: 0.6
+seed: 1337

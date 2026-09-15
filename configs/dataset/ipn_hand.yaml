@@ -1,0 +1,55 @@
+# IPN Hand -- Phase 1 engineering vehicle.
+#
+# Benitez-Garcia et al., "IPN Hand: A Video Dataset and Benchmark for Real-Time
+# Continuous Hand Gesture Recognition", ICPR 2020. CC BY 4.0.
+# https://gibranbenitez.github.io/IPN_Hand/
+#
+# The 13 gesture classes are touchless-interface commands, not distress signals. That is
+# deliberate: IPN Hand has the right *shape* for online detection -- continuous video, a
+# dominant non-gesture class, subject metadata, fuzzy onsets -- and Phase 2 swaps in the
+# author's own SOS recordings behind the same adapter boundary.
+#
+# The adapter itself lands at Stage 1. This file exists now so that the dataset's facts
+# and its published verification targets live in config rather than as literals in Python.
+
+name: ipn_hand
+adapter: ipn_hand
+fps: 30.0
+frame_size: [640, 480]
+
+# 13 gestures. `none` (the non-gesture class) is prepended at index 0 automatically and
+# is NOT listed here. It is the largest class in the dataset and the detection problem
+# depends on it -- see CLAUDE.md section 3.
+gesture_classes:
+  - pointing_with_one_finger
+  - pointing_with_two_fingers
+  - click_with_one_finger
+  - click_with_two_fingers
+  - throw_up
+  - throw_down
+  - throw_left
+  - throw_right
+  - open_twice
+  - double_click_with_one_finger
+  - double_click_with_two_fingers
+  - zoom_in
+  - zoom_out
+
+# Published figures. Stage 1 prints these side by side with the computed values and the
+# gate is that they match. Mismatches get investigated, not explained away.
+expected:
+  num_videos: 200
+  num_subjects: 50
+  num_gesture_classes: 13
+  num_gesture_instances: 4218
+  num_none_instances: 1431
+  approx_num_frames: 800000
+  frames_tolerance: 0.02      # fractional slack on the "~800,000" figure only
+
+# Filled in at Stage 1 once the download layout is confirmed.
+source:
+  url: https://gibranbenitez.github.io/IPN_Hand/
+  license: CC BY 4.0
+  annotations_file: null
+  metadata_file: null
+  frames_dir: null

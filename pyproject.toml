@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sos-oad"
+version = "0.1.0"
+description = "Online temporal action detection for distress/SOS hand signals in continuous video"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+
+[tool.setuptools]
+packages = ["src"]
+
+[tool.pytest.ini_options]
+# rootdir-relative imports, so `from src...` works without installing the package.
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+    "causality: asserts a module never reads a future frame (Hard Rule 1)",
+    "splits: asserts subject-disjointness (Hard Rule 3)",
+    "slow: needs the real dataset or a GPU",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = ["E501"]

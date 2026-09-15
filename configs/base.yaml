@@ -1,0 +1,36 @@
+# Base configuration.
+#
+# Composed with a dataset group file via `defaults:` below, then overridden from the
+# command line with `--set key=value`. The fully resolved result is written into every
+# run directory as config.yaml, so any number in the thesis traces back to exact settings.
+
+defaults:
+  dataset: synthetic      # switch to `ipn_hand` at Stage 1
+
+project: sos-oad
+run_name: null            # null -> the script names the run
+
+# Reproducibility. Stage 8 reports seed variance, which only means something if a fixed
+# seed genuinely pins the run down.
+seed: 1337
+deterministic: true
+
+# Never hardcoded anywhere in src/. The author's laptop has no NVIDIA GPU, and the
+# training box is not chosen yet, so every script must run unchanged on cpu.
+device: cpu              # cpu | cuda | mps
+
+paths:
+  data_root: data        # canonical-format datasets
+  raw_root: raw          # unconverted downloads; adapter input only
+  runs_root: runs        # logs, checkpoints, metrics, figures
+
+logging:
+  backend: tensorboard   # tensorboard | wandb | none
+  log_every_n_steps: 20
+
+# Validation strictness. These tighten as stages land, rather than being relaxed later
+# to make a failing dataset pass.
+validation:
+  check_arrays: true     # load every .npy to verify shape, dtype, finiteness
+  require_poses: false   # Stage 3 turns this on
+  require_splits: false  # Stage 2 turns this on

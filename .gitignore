@@ -2,12 +2,15 @@
 # Canonical-format datasets, raw downloads, feature caches, run outputs.
 # These are large (IPN Hand alone is ~800k frames) and are reproducible from
 # scripts/ + configs/. See CLAUDE.md §4.
-data/
-raw/
-runs/
-outputs/
-checkpoints/
-wandb/
+#
+# Leading slashes are load-bearing: an unanchored `data/` matches at ANY depth and
+# would silently exclude src/data/, the most important package in the repo.
+/data/
+/raw/
+/runs/
+/outputs/
+/checkpoints/
+/wandb/
 *.npy
 *.npz
 *.pt
@@ -15,9 +18,14 @@ wandb/
 *.ckpt
 *.tfevents.*
 
-# Exception: small synthetic fixtures used by the schema/causality tests.
+# Exception: hand-made fixtures that cannot be regenerated from a script.
 !tests/fixtures/**
 !tests/fixtures/**/*.npy
+
+# ...but not the generated synthetic dataset. The test suite builds its own copy in a
+# tmp dir, so committing this one would be half a megabyte of binaries that nothing
+# reads. Regenerate it with: python scripts/make_fixture.py --force
+tests/fixtures/synthetic/
 
 # --- python ---
 __pycache__/
