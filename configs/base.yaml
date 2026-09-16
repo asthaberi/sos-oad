@@ -32,5 +32,6 @@ logging:
 # to make a failing dataset pass.
 validation:
   check_arrays: true     # load every .npy to verify shape, dtype, finiteness
-  require_poses: false   # Stage 3 turns this on
-  require_splits: false  # Stage 2 turns this on
+  require_poses: false    # Stage 3 turns this on
+  require_splits: false   # Stage 2 turns this on
+  require_features: false # Stage 3 turns this on, once the feature cache exists

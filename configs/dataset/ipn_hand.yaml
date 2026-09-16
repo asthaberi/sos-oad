@@ -46,10 +46,40 @@ expected:
   approx_num_frames: 800000
   frames_tolerance: 0.02      # fractional slack on the "~800,000" figure only
 
-# Filled in at Stage 1 once the download layout is confirmed.
+  # Table II of the paper: per-class instance count and span duration in frames, in the
+  # paper's own id order. This is a far stronger check than the totals above, because it
+  # pins down the class *mapping* and not just the class *count* -- classIdx.txt ships
+  # only codes (B0A, G01, ...), so nothing in the download says which code is which
+  # gesture. 90 of the 91 possible label swaps change at least one of these numbers.
+  #
+  # duration_tolerance is 1.0 because the paper prints means rounded to whole frames.
+  duration_tolerance: 1.0
+  per_class:
+    - {name: none,                          instances: 1431, mean_duration: 147, std_duration: 133}
+    - {name: pointing_with_one_finger,      instances: 1010, mean_duration: 219, std_duration: 67}
+    - {name: pointing_with_two_fingers,     instances: 1007, mean_duration: 224, std_duration: 69}
+    - {name: click_with_one_finger,         instances: 200,  mean_duration: 56,  std_duration: 29}
+    - {name: click_with_two_fingers,        instances: 200,  mean_duration: 60,  std_duration: 43}
+    - {name: throw_up,                      instances: 200,  mean_duration: 62,  std_duration: 25}
+    - {name: throw_down,                    instances: 201,  mean_duration: 65,  std_duration: 28}
+    - {name: throw_left,                    instances: 200,  mean_duration: 66,  std_duration: 27}
+    - {name: throw_right,                   instances: 200,  mean_duration: 64,  std_duration: 28}
+    - {name: open_twice,                    instances: 200,  mean_duration: 76,  std_duration: 31}
+    - {name: double_click_with_one_finger,  instances: 200,  mean_duration: 68,  std_duration: 28}
+    - {name: double_click_with_two_fingers, instances: 200,  mean_duration: 70,  std_duration: 30}
+    - {name: zoom_in,                       instances: 200,  mean_duration: 65,  std_duration: 29}
+    - {name: zoom_out,                      instances: 200,  mean_duration: 64,  std_duration: 28}
+
+# Confirmed at Stage 1 against the actual download. Paths are relative to the IPN Hand
+# source tree (<paths.raw_root>/IPN_Hand by default); only src/data/adapters/ipn_hand.py
+# ever reads them.
 source:
   url: https://gibranbenitez.github.io/IPN_Hand/
   license: CC BY 4.0
-  annotations_file: null
-  metadata_file: null
-  frames_dir: null
+  # The Google Drive copy arrives as 16 independent zips, each holding a subset of the
+  # files -- not the parts of one split archive. scripts/prepare_ipn_hand.py unions them.
+  download: 16 x IPN_Hand-*.zip, ~28 GB
+  annotations_file: annotations/Annot_List.txt
+  metadata_file: annotations/metadata.csv
+  class_index_file: annotations/classIdx.txt
+  frames_dir: frames            # frames/<video_id>/<video_id>_%06d.jpg, Stage 3 reads it

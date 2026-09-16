@@ -152,8 +152,8 @@ run log rather than pretending.
 | Stage | Content | Gate | Status |
 |---|---|---|---|
 | 0 | Repo + canonical format + config system | Schema validator passes on a synthetic fixture | **DONE** |
-| 1 | Acquire IPN Hand, write adapter | Published figures reproduced (see below) | **next** |
-| 2 | Frozen subject-disjoint splits + LOSGO | Unit test: no `subject_id` in >1 split | not started |
+| 1 | Acquire IPN Hand, write adapter | Published figures reproduced (see below) | **DONE** |
+| 2 | Frozen subject-disjoint splits + LOSGO | Unit test: no `subject_id` in >1 split | **next** |
 | 3 | Feature extraction, 2 streams, cached | All 200 videos cached, shapes verified | not started |
 | 4 | Baselines B0 + B1 + **full** eval harness | Both baselines produce the complete metric set | not started |
 | 5 | M1 model | — | not started |
@@ -170,6 +170,32 @@ Keep this table current. It is the project's memory across sessions.
 
 Stage 1 must print these side by side with the computed values. Mismatches are investigated, not
 explained away.
+
+### What Stage 1 established
+
+All six figures reproduce, and so does Table II of the paper row by row — per-class instance
+counts, mean span duration and std, with `classes.txt` index equal to the paper's class id
+(`runs/*-stage1-ipn-hand/`). That second check matters because `classIdx.txt` ships only codes
+(`B0A`, `G01`, …) and nothing in the download says which code is which gesture; the names are
+matched positionally from the paper's table. A test simulates all 91 pairwise label swaps and
+confirms 90 of them would break Table II. The one that would not is `throw_right` vs `zoom_out`,
+which the paper rounds to the same 64 (28) — those two rest on `classIdx.txt` ordering alone.
+
+Three findings that downstream stages depend on:
+
+- **`subject_id` is `<camera>_<subject>`, not the subject token.** The token restarts per camera
+  and repeats across cameras; the pair gives exactly 50 groups of exactly 4 videos, and the
+  authors' own split is disjoint under it while 8 bare tokens straddle it. Stage 2 splits on this.
+- **Video length comes from `Annot_List.txt`, not `metadata.csv`.** The `Frames` column overcounts
+  by exactly 1 for exactly the 14 videos whose frame directory holds a stray Windows
+  `desktop.ini` — it was produced by counting directory entries. Real frame count is **800,491**,
+  and for every video it equals both the last `t_end` and the highest JPEG index. Stage 3 must
+  count `*.jpg`, never directory entries.
+- **`none` is the largest class by instances (1,431) but only the third largest by frames
+  (26.3%).** `pointing_with_two_fingers` (28.2%) and `pointing_with_one_finger` (27.6%) are
+  larger: IPN's B0A/B0B are long resting/transition spans, median ~7 s, not brief commands. The
+  three together are 82% of frames. Stage 5's class balancing and Stage 7's false-alarm metric
+  both need to reckon with that, and Phase 2's SOS recordings will not have this shape.
 
 ### Stage 3 — backbone preference order
 

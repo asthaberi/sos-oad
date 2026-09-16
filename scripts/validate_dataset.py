@@ -40,6 +40,11 @@ def main() -> int:
     parser.add_argument(
         "--require-splits", action="store_true", help="treat unassigned splits as an error"
     )
+    parser.add_argument(
+        "--require-features",
+        action="store_true",
+        help="treat a missing feature array as an error (Stage 3 onwards)",
+    )
     args = parser.parse_args()
 
     log = get_logger("validate")
@@ -55,6 +60,7 @@ def main() -> int:
         check_arrays=not args.no_check_arrays and bool(cfg.validation.check_arrays),
         require_poses=args.require_poses or bool(cfg.validation.require_poses),
         require_splits=args.require_splits or bool(cfg.validation.require_splits),
+        require_features=args.require_features or bool(cfg.validation.require_features),
     )
 
     print(report.render())

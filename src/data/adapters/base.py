@@ -161,11 +161,21 @@ class DatasetAdapter(abc.ABC):
 
     # -- driver -------------------------------------------------------------------
 
-    def convert(self, *, validate: bool = True, check_arrays: bool = True) -> C.ValidationReport:
+    def convert(
+        self,
+        *,
+        validate: bool = True,
+        check_arrays: bool = True,
+        require_features: bool = True,
+    ) -> C.ValidationReport:
         """Run the adapter and validate its output.
 
         An adapter's output is not trusted because it was produced by an adapter; it is
         trusted because it passed the validator.
+
+        ``require_features`` is a caller's decision rather than an adapter's, so that an
+        annotation-only conversion is visible at the call site instead of hidden in a
+        class attribute. See :func:`src.data.canonical.validate_dataset`.
         """
         root = self.config.output_root
         root.mkdir(parents=True, exist_ok=True)
@@ -182,7 +192,9 @@ class DatasetAdapter(abc.ABC):
 
         if not validate:
             return C.ValidationReport(root=root)
-        return C.validate_dataset(root, check_arrays=check_arrays)
+        return C.validate_dataset(
+            root, check_arrays=check_arrays, require_features=require_features
+        )
 
     def _meta(self) -> dict[str, Any]:
         options = self.config.options

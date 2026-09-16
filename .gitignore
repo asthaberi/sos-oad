@@ -7,6 +7,9 @@
 # would silently exclude src/data/, the most important package in the repo.
 /data/
 /raw/
+# The downloaded archives themselves. 28 GB of zips sitting in the working tree is one
+# stray `git add .` away from a very bad afternoon.
+/IPN hand Dataset/
 /runs/
 /outputs/
 /checkpoints/

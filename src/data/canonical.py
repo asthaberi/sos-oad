@@ -399,6 +399,7 @@ def validate_dataset(
     check_arrays: bool = True,
     require_poses: bool = False,
     require_splits: bool = False,
+    require_features: bool = True,
 ) -> ValidationReport:
     """Validate a canonical-format dataset.
 
@@ -410,6 +411,12 @@ def validate_dataset(
             The pose stream is optional in the format; Stage 3 turns this on.
         require_splits: treat unassigned splits as an error. Adapters leave splits
             empty (Stage 1); Stage 2 turns this on once splits are frozen.
+        require_features: treat a missing feature array as an error. Defaults to True --
+            ``features/`` is part of the format, not an extra. It is turned *off* only
+            between Stage 1 and Stage 3, while the dataset is annotation-only because the
+            backbone has not been run yet. This is a ratchet like ``require_poses`` and
+            ``require_splits``: it tightens as stages land and is never loosened to make a
+            failing dataset pass.
 
     Returns:
         A report. ``report.ok`` is False iff there is at least one error.
@@ -417,7 +424,7 @@ def validate_dataset(
     root = Path(root)
     report = ValidationReport(root=root)
 
-    if not _check_layout(root, report):
+    if not _check_layout(root, report, require_features=require_features):
         return report
 
     classes = _check_classes(root, report)
@@ -431,13 +438,17 @@ def validate_dataset(
     _check_meta(root, classes, report)
     lengths = _check_annotation_semantics(annotations, report)
     _check_splits(annotations, report, require_splits=require_splits)
-    _check_files(root, annotations, lengths, report, check_arrays, require_poses)
+    _check_files(
+        root, annotations, lengths, report, check_arrays, require_poses, require_features
+    )
     _collect_stats(annotations, classes, lengths, report)
 
     return report
 
 
-def _check_layout(root: Path, report: ValidationReport) -> bool:
+def _check_layout(
+    root: Path, report: ValidationReport, *, require_features: bool = True
+) -> bool:
     if not root.is_dir():
         report.error("layout.missing_root", f"dataset root does not exist: {root}")
         return False
@@ -447,8 +458,19 @@ def _check_layout(root: Path, report: ValidationReport) -> bool:
             report.error("layout.missing_file", f"required file missing: {name}")
             ok = False
     if not (root / FEATURES_DIR).is_dir():
-        report.error("layout.missing_file", f"required directory missing: {FEATURES_DIR}/")
-        ok = False
+        # Between Stage 1 and Stage 3 the dataset is annotation-only, so there is nothing
+        # to put in features/ yet. Reported either way; an empty directory is not created
+        # to paper over it, because a layout that looks complete and is not is worse than
+        # one that is visibly unfinished.
+        message = f"required directory missing: {FEATURES_DIR}/"
+        if require_features:
+            report.error("layout.missing_file", message)
+            ok = False
+        else:
+            report.warn(
+                "layout.features_not_extracted",
+                message + " (expected until Stage 3 writes the feature cache)",
+            )
     return ok
 
 
@@ -695,16 +717,23 @@ def _check_files(
     report: ValidationReport,
     check_arrays: bool,
     require_poses: bool,
+    require_features: bool = True,
 ) -> None:
     annotated = set(lengths)
     on_disk = {p.stem for p in (root / FEATURES_DIR).glob("*.npy")}
 
     for video_id in sorted(annotated - on_disk):
-        report.error(
-            "files.missing_features",
-            f"annotated video has no {FEATURES_DIR}/{video_id}.npy",
-            where=video_id,
-        )
+        message = f"annotated video has no {FEATURES_DIR}/{video_id}.npy"
+        if require_features:
+            report.error("files.missing_features", message, where=video_id)
+        else:
+            # Stage 1 lands the annotation layer; Stage 3 extracts the features. Flagged,
+            # never silent -- an annotation-only dataset must not look complete.
+            report.warn(
+                "files.features_not_extracted",
+                message + " (expected until Stage 3 writes the feature cache)",
+                where=video_id,
+            )
     for video_id in sorted(on_disk - annotated):
         report.warn(
             "files.orphan_features",

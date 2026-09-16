@@ -10,12 +10,14 @@ from __future__ import annotations
 from typing import Type
 
 from src.data.adapters.base import AdapterConfig, DatasetAdapter
+from src.data.adapters.ipn_hand import IPNHandAdapter
 from src.data.adapters.synthetic import SyntheticAdapter
 
-#: name -> adapter class. Stage 1 registers "ipn_hand"; Phase 2 registers the author's
-#: own SOS recordings here and stops there.
+#: name -> adapter class. Phase 2 registers the author's own SOS recordings here and
+#: stops there.
 ADAPTERS: dict[str, Type[DatasetAdapter]] = {
     SyntheticAdapter.name: SyntheticAdapter,
+    IPNHandAdapter.name: IPNHandAdapter,
 }
 
 
@@ -28,4 +30,11 @@ def get_adapter(name: str) -> Type[DatasetAdapter]:
         ) from None
 
 
-__all__ = ["ADAPTERS", "AdapterConfig", "DatasetAdapter", "SyntheticAdapter", "get_adapter"]
+__all__ = [
+    "ADAPTERS",
+    "AdapterConfig",
+    "DatasetAdapter",
+    "IPNHandAdapter",
+    "SyntheticAdapter",
+    "get_adapter",
+]

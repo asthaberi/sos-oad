@@ -29,8 +29,9 @@ data/<dataset>/
   meta.yaml                    # fps, feature dim, backbone id, extraction settings, checksums
 ```
 
-Class index 0 is always `none`, the non-gesture class. It is the largest class in the dataset and
-the whole detection problem depends on it. It is never dropped as background.
+Class index 0 is always `none`, the non-gesture class. The whole detection problem depends on it,
+and it is never dropped as background. (On IPN Hand it is the largest class by instance count but
+only the third largest by frame count — see the Stage 1 notes in `CLAUDE.md`.)
 
 ## Setup
 
@@ -69,12 +70,31 @@ python scripts/validate_dataset.py --root tests/fixtures/synthetic
 pytest tests/ -v
 ```
 
+### Stage 1 — IPN Hand
+
+Download IPN Hand (CC BY 4.0, https://gibranbenitez.github.io/IPN_Hand/). The Google Drive copy
+arrives as 16 independent zips totalling ~28 GB. Point the script at the directory holding them;
+it unpacks only the annotation text files (a few hundred KB), converts to the canonical format,
+and prints the published figures beside the computed ones. That table is the Stage 1 gate:
+
+```powershell
+python scripts/prepare_ipn_hand.py --zips $HOME\Downloads --set dataset=ipn_hand
+```
+
+Add `--verify-frames` to also count the ~800k JPEGs, streamed straight out of the archives with
+nothing written to disk (~2 min). Re-check the gate at any time with:
+
+```powershell
+pytest tests/test_ipn_hand.py -m slow
+```
+
 Validate any canonical dataset, with strictness that ratchets up per stage:
 
 ```powershell
-python scripts/validate_dataset.py --root data/ipn_hand                    # Stage 1
-python scripts/validate_dataset.py --root data/ipn_hand --require-splits   # Stage 2
-python scripts/validate_dataset.py --root data/ipn_hand --require-poses    # Stage 3
+python scripts/validate_dataset.py --root data/ipn_hand                     # Stage 1
+python scripts/validate_dataset.py --root data/ipn_hand --require-splits    # Stage 2
+python scripts/validate_dataset.py --root data/ipn_hand --require-poses `
+                                   --require-features                       # Stage 3
 ```
 
 Configs compose a base with a dataset group, overridable from the command line:
