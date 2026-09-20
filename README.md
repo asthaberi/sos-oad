@@ -112,10 +112,21 @@ extractors the harness must reject:
 pytest -m causality
 ```
 
-Extraction runs on a Kaggle T4 (this laptop has no CUDA). Upload the five `frames*.tgz`
-archives and the `annotations/` folder as a Kaggle dataset, then run
-`notebooks/kaggle_extract_ipn.ipynb`, which clones this repo at a pinned commit so every run
-is traceable to a SHA. One shard per session:
+Extraction runs on a Kaggle T4 (this laptop has no CUDA). Stage the upload — five `.tgz`
+archives plus `annotations/`, hard-linked so it costs no extra disk — and create a **private**
+Kaggle dataset from it:
+
+```powershell
+pip install kaggle          # then save your API token to ~/.kaggle/kaggle.json
+python scripts/prepare_kaggle_upload.py
+kaggle datasets create -p raw/kaggle_upload --dir-mode tar
+```
+
+Five files, not 800k JPEGs: Kaggle handles a few large archives far better than a huge file
+count, and the notebook untars only the shard it needs.
+
+Then run `notebooks/kaggle_extract_ipn.ipynb`, which clones this repo at a pinned commit so
+every run is traceable to a SHA. One shard per session:
 
 ```python
 SHARD = '0/4'        # 12-hour session cap; re-running skips what is already cached
