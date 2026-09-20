@@ -1,0 +1,16 @@
+# Dependency-free test backbone. Runs anywhere, needs nothing, and is deliberately
+# uninformative: if a model scores well on these features the harness is broken.
+#
+# Exists so the extraction pipeline can be exercised end to end on a clean checkout, the
+# same reasoning as the synthetic dataset adapter at Stage 0. Never report a number from it.
+
+name: projection
+stream: features
+backbone: projection
+backbone_options:
+  dim: 32
+  seed: 1337
+  pool: 4
+snippet_length: 16
+snippet_stride: 6
+batch_size: 16

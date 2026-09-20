@@ -1,0 +1,31 @@
+# Stage 3 RGB stream: frozen VideoMAEv2-Base.
+#
+# First preference in CLAUDE.md's backbone order. Extraction runs on a Kaggle T4; the
+# resulting .npy cache is checksummed in meta.yaml and shipped to wherever training
+# happens, which is the portability requirement in CLAUDE.md section 4.
+
+name: videomaev2
+stream: features
+backbone: videomaev2-base
+backbone_options:
+  checkpoint: OpenGVLab/VideoMAEv2-Base
+  input_size: 224
+  # `resize` squashes the full 640x480 frame to 224x224. The usual eval transform
+  # (`center`) keeps only the middle ~75% of the width, which can cut the hand out of a
+  # throw_left / throw_right / zoom gesture entirely. Ablatable, not assumed.
+  crop: resize
+  dtype: float32
+
+# Must equal the checkpoint's clip length; the backbone refuses a mismatch rather than
+# silently padding or truncating.
+snippet_length: 16
+
+# 6 frames at 30 fps = 0.2 s between snippets. Features are held forward causally between
+# grid positions, so this sets the temporal resolution of the RGB stream: an onset can be
+# localised to no better than one stride. Lower is better and costs linearly more compute.
+snippet_stride: 6
+
+# Part of the cache's identity, not just a throughput knob -- float32 matmul is not
+# batch-size invariant, so changing this changes the bytes and the checksum.
+# See tests/test_causality.py.
+batch_size: 16

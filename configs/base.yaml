@@ -7,6 +7,7 @@
 defaults:
   dataset: synthetic      # switch to `ipn_hand` at Stage 1
   split: generated        # switch to `ipn_official` alongside `dataset=ipn_hand`
+  features: projection    # switch to `videomaev2` where there is a GPU
 
 project: sos-oad
 run_name: null            # null -> the script names the run

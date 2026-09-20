@@ -20,5 +20,14 @@ torch==2.5.1             # CPU wheel on Windows/macOS from PyPI by default
 tensorboard==2.18.0      # Hard Rule 4
 tqdm==4.67.1
 
+# --- Stage 3: feature extraction ---
+# Pillow decodes the extracted JPEG frames. It is imported lazily by the frame source, so
+# the causal machinery and its tests still run without it.
+Pillow==11.0.0
+# transformers pulls the VideoMAEv2 checkpoint. CPU-safe: it installs and imports fine
+# without CUDA, it is simply slow. The GPU pins live in requirements-cuda.txt.
+transformers==4.46.3
+safetensors==0.4.5
+
 # --- test / lint ---
 pytest==8.3.4

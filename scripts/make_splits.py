@@ -43,6 +43,15 @@ def main() -> int:
         help="print the existing frozen split and exit without writing anything",
     )
     parser.add_argument(
+        "--apply-frozen",
+        action="store_true",
+        help=(
+            "apply the committed frozen split to annotations.csv without regenerating it. "
+            "This is the path on a fresh clone -- the split file is in version control but "
+            "annotations.csv is rebuilt by the adapter, so the split column starts empty."
+        ),
+    )
+    parser.add_argument(
         "--force",
         action="store_true",
         help="overwrite an existing frozen split (see the warning in the module docstring)",
@@ -77,6 +86,31 @@ def main() -> int:
         for problem in problems:
             print(f"  {problem}")
         return 0 if not problems else 1
+
+    # -- apply an already-frozen split ---------------------------------------------
+    if args.apply_frozen:
+        # load() checks the subject digest, so a split frozen against a different version
+        # of the dataset is refused rather than quietly applied to the wrong subjects.
+        assignment = S.load(root, spec.name, dataset=dataset)
+        problems = S.verify(assignment, dataset)
+        print()
+        print(S.summarise(assignment, dataset))
+        print()
+        if problems:
+            log.error("the frozen split does not verify against this dataset")
+            for problem in problems:
+                print(f"  {problem}")
+            return 1
+        rows = S.apply(root, assignment)
+        log.info("applied frozen split %r to %d annotation rows", spec.name, rows)
+        report = C.validate_dataset(
+            root,
+            check_arrays=bool(cfg.validation.check_arrays),
+            require_features=bool(cfg.validation.require_features),
+            require_splits=True,
+        )
+        print(report.render())
+        return 0 if report.ok else 1
 
     # -- refuse to silently re-freeze ----------------------------------------------
     if path.is_file() and not args.force:

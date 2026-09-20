@@ -154,7 +154,7 @@ run log rather than pretending.
 | 0 | Repo + canonical format + config system | Schema validator passes on a synthetic fixture | **DONE** |
 | 1 | Acquire IPN Hand, write adapter | Published figures reproduced (see below) | **DONE** |
 | 2 | Frozen subject-disjoint splits + LOSGO | Unit test: no `subject_id` in >1 split | **DONE** |
-| 3 | Feature extraction, 2 streams, cached | All 200 videos cached, shapes verified | **next** |
+| 3 | Feature extraction, 2 streams, cached | All 200 videos cached, shapes verified | **in progress** — RGB path built and Kaggle-ready; pose stream not started |
 | 4 | Baselines B0 + B1 + **full** eval harness | Both baselines produce the complete metric set | not started |
 | 5 | M1 model | — | not started |
 | 6 | Online decision layer | — | not started |
@@ -219,6 +219,49 @@ Frozen split `ipn_official`: **30 train / 7 val / 13 test subjects**, 120 / 28 /
 - `validation.require_splits` is now **on**. The synthetic fixture was resized to 12 subjects
   and now carries a frozen split of its own, so it stays a *complete* canonical dataset rather
   than one that passes only the checks that were on when it was written.
+
+### Stage 3 — what has landed so far
+
+The causal core and the cache, both dependency-free and fully tested. Extraction itself is
+blocked on the RGB backbone / hardware decision.
+
+- **`tests/test_causality.py` now exists** — the file CLAUDE.md calls load-bearing. It runs the
+  truncation test from Rule 1 and also builds three deliberately non-causal extractors (centred
+  snippet, end-anchored grid, forward interpolation) and asserts the harness **rejects** each.
+  A causality test that has only ever seen causal code is not a test.
+- **Snippet scheduling rules** (`src/features/causal.py`): clip covers `[end-L+1, end]`, never
+  centred; grid anchored at frame **0**, never at the video end, so a prefix's grid is a prefix
+  of the full grid; between snippets **hold last, never interpolate**; warm-up pads backwards by
+  repeating frame 0.
+- **Batch size is part of the cache's identity.** float32 matmul is *not* batch-size invariant
+  (~4e-6 here; worse on GPU) — position in the batch and neighbouring rows don't matter, only
+  the row count. The extractor therefore pads the final batch to full size. Without that, Rule 1's
+  bit-identity test fails for reasons unrelated to causality, and the tempting fix is to loosen
+  the test to a tolerance — which would leave a causality test that cannot detect a violation.
+  `test_final_batch_is_padded_to_a_fixed_size` guards the padding.
+- **The cache is checksummed** (`src/features/cache.py`). Per-video SHA-256 plus every extraction
+  setting goes into `meta.yaml`, because §4 makes the cache a *transferred* artefact. Tests cover
+  truncated transfers, single flipped values, missing files and stale leftovers.
+- **Normalisation is deliberately not done here.** Rule 1 forbids statistics fitted over a whole
+  sequence or dataset, so mean/std must be fitted on train only, at the stage that trains.
+  Normalising into the cache would bake a leak where nothing downstream could see it.
+- **The production path is a rolling buffer**, not random access. Overlapping clips would
+  otherwise re-decode each JPEG ~2.7x; decode, not the GPU, is the bottleneck (measured at
+  **290 fps single-threaded** on the author's laptop, so ~46 min of pure decode for 800k frames).
+  `extract_reference()` is the obvious random-access implementation, kept as the reference half
+  of a differential test — optimising a causal scheduler is exactly the change that can
+  introduce a future read while still looking right.
+- **Extraction runs on Kaggle**, decided 2026-09-20. `notebooks/kaggle_extract_ipn.ipynb` clones
+  the repo at a pinned SHA (Rule 4), rebuilds the derived files, applies the committed frozen
+  split with `make_splits.py --apply-frozen`, and extracts one `--shard i/n`. Shards are
+  contiguous and balanced; resume is automatic since cached videos are skipped.
+- **VideoMAEv2-Base** is `OpenGVLab/VideoMAEv2-Base` (verified on the Hub, not guessed): 16
+  frames, 3x224x224, pixel tensor permuted to `(B, C, T, H, W)`, loaded with
+  `trust_remote_code=True`. The output dim is **probed at load**, not hardcoded — the model card
+  does not document it.
+- **Frames are resized full-frame, not centre-cropped.** The standard eval transform keeps only
+  the middle ~75% of a 640x480 frame, and `throw_left` / `throw_right` / the zooms are lateral
+  hand motions that reach the frame edges. `crop: center` is config-exposed for the ablation.
 
 ### Stage 3 — backbone preference order
 
