@@ -88,11 +88,25 @@ nothing written to disk (~2 min). Re-check the gate at any time with:
 pytest tests/test_ipn_hand.py -m slow
 ```
 
+### Stage 2 — frozen subject-disjoint splits
+
+Generate and freeze the split. The test set is IPN's own 13 subjects; the remaining 37 are
+partitioned into 5 LOSGO folds, and fold 0 is promoted to be the primary validation set:
+
+```powershell
+python scripts/make_splits.py --set dataset=ipn_hand split=ipn_official
+python scripts/make_splits.py --set dataset=ipn_hand split=ipn_official --show
+pytest -m splits
+```
+
+The frozen split lands at `data/ipn_hand/splits/ipn_official.json` and **is committed** — it is
+the evidence that the split behind any reported number never moved. Re-running refuses to
+overwrite it without `--force`, and says which subjects would change side.
+
 Validate any canonical dataset, with strictness that ratchets up per stage:
 
 ```powershell
-python scripts/validate_dataset.py --root data/ipn_hand                     # Stage 1
-python scripts/validate_dataset.py --root data/ipn_hand --require-splits    # Stage 2
+python scripts/validate_dataset.py --root data/ipn_hand                     # Stage 2 strictness
 python scripts/validate_dataset.py --root data/ipn_hand --require-poses `
                                    --require-features                       # Stage 3
 ```

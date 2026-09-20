@@ -11,8 +11,11 @@ frame_size: [640, 480]
 
 gesture_classes: [wave, point, fist]   # `none` is prepended at index 0 automatically
 
-num_videos: 8
-num_subjects: 4
+# Sized so the fixture can carry the real split protocol: 12 subjects leaves 9 or 10
+# non-test after the 0.2 test draw, enough for the 5 LOSGO folds in configs/split/. A
+# fixture that cannot exercise the protocol is not a fixture for it.
+num_videos: 24
+num_subjects: 12
 feature_dim: 16
 num_joints: 5
 

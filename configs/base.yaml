@@ -6,6 +6,7 @@
 
 defaults:
   dataset: synthetic      # switch to `ipn_hand` at Stage 1
+  split: generated        # switch to `ipn_official` alongside `dataset=ipn_hand`
 
 project: sos-oad
 run_name: null            # null -> the script names the run
@@ -33,5 +34,5 @@ logging:
 validation:
   check_arrays: true     # load every .npy to verify shape, dtype, finiteness
   require_poses: false    # Stage 3 turns this on
-  require_splits: false   # Stage 2 turns this on
+  require_splits: true    # Stage 2 landed and turned this on
   require_features: false # Stage 3 turns this on, once the feature cache exists

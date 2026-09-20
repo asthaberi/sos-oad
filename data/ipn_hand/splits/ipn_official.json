@@ -1,0 +1,134 @@
+{
+  "spec": {
+    "name": "ipn_official",
+    "seed": 1337,
+    "test_source": "publisher",
+    "publisher_test_value": "test",
+    "test_fraction": 0.2,
+    "num_folds": 5,
+    "primary_val_fold": 0,
+    "stratify_by": [
+      "camera"
+    ]
+  },
+  "subject_split": {
+    "1CM1_1": "test",
+    "1CM1_2": "test",
+    "1CM1_3": "test",
+    "1CM1_4": "train",
+    "1CM42_11": "train",
+    "1CM42_12": "train",
+    "1CM42_13": "train",
+    "1CM42_15": "test",
+    "1CM42_17": "train",
+    "1CM42_18": "val",
+    "1CM42_21": "train",
+    "1CM42_26": "train",
+    "1CM42_3": "train",
+    "1CM42_30": "test",
+    "1CM42_31": "test",
+    "1CM42_32": "train",
+    "1CM42_4": "val",
+    "1CM42_6": "train",
+    "1CM42_7": "val",
+    "1CM42_9": "train",
+    "1CV12_1": "train",
+    "1CV12_12": "test",
+    "1CV12_13": "train",
+    "1CV12_15": "test",
+    "1CV12_16": "train",
+    "1CV12_2": "train",
+    "1CV12_21": "test",
+    "1CV12_22": "train",
+    "1CV12_23": "train",
+    "1CV12_6": "train",
+    "1CV12_7": "val",
+    "1CV12_8": "train",
+    "4CM11_1": "train",
+    "4CM11_10": "train",
+    "4CM11_11": "train",
+    "4CM11_13": "test",
+    "4CM11_14": "val",
+    "4CM11_15": "val",
+    "4CM11_16": "train",
+    "4CM11_17": "val",
+    "4CM11_18": "test",
+    "4CM11_19": "train",
+    "4CM11_2": "train",
+    "4CM11_20": "test",
+    "4CM11_23": "train",
+    "4CM11_24": "test",
+    "4CM11_26": "train",
+    "4CM11_29": "train",
+    "4CM11_5": "train",
+    "4CM11_7": "train"
+  },
+  "folds": [
+    [
+      "1CM42_18",
+      "1CM42_4",
+      "1CM42_7",
+      "1CV12_7",
+      "4CM11_14",
+      "4CM11_15",
+      "4CM11_17"
+    ],
+    [
+      "1CM1_4",
+      "1CM42_3",
+      "1CM42_9",
+      "1CV12_13",
+      "1CV12_6",
+      "4CM11_19",
+      "4CM11_5",
+      "4CM11_7"
+    ],
+    [
+      "1CM42_17",
+      "1CM42_6",
+      "1CV12_2",
+      "1CV12_22",
+      "1CV12_8",
+      "4CM11_1",
+      "4CM11_16",
+      "4CM11_26"
+    ],
+    [
+      "1CM42_11",
+      "1CM42_32",
+      "1CV12_1",
+      "1CV12_16",
+      "4CM11_10",
+      "4CM11_11",
+      "4CM11_23"
+    ],
+    [
+      "1CM42_12",
+      "1CM42_13",
+      "1CM42_21",
+      "1CM42_26",
+      "1CV12_23",
+      "4CM11_2",
+      "4CM11_29"
+    ]
+  ],
+  "subjects_digest": "e676d8a3a640d23979075357ebde68c55643e53641144f27173b412a6969b73b",
+  "provenance": {
+    "dataset": "ipn_hand",
+    "dataset_root": "data\\ipn_hand",
+    "num_subjects": 50,
+    "created_utc": "2026-09-16T03:23:10+00:00",
+    "git": {
+      "commit": "a62f8ef80c3e1b00efae8db58da44c6c67356552",
+      "branch": "main",
+      "dirty": true,
+      "dirty_files": [
+        "M configs/base.yaml",
+        " M src/data/adapters/ipn_hand.py",
+        "?? configs/split/",
+        "?? scripts/make_splits.py",
+        "?? src/data/splits.py"
+      ]
+    }
+  }
+}

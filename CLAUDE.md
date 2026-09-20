@@ -153,8 +153,8 @@ run log rather than pretending.
 |---|---|---|---|
 | 0 | Repo + canonical format + config system | Schema validator passes on a synthetic fixture | **DONE** |
 | 1 | Acquire IPN Hand, write adapter | Published figures reproduced (see below) | **DONE** |
-| 2 | Frozen subject-disjoint splits + LOSGO | Unit test: no `subject_id` in >1 split | **next** |
-| 3 | Feature extraction, 2 streams, cached | All 200 videos cached, shapes verified | not started |
+| 2 | Frozen subject-disjoint splits + LOSGO | Unit test: no `subject_id` in >1 split | **DONE** |
+| 3 | Feature extraction, 2 streams, cached | All 200 videos cached, shapes verified | **next** |
 | 4 | Baselines B0 + B1 + **full** eval harness | Both baselines produce the complete metric set | not started |
 | 5 | M1 model | — | not started |
 | 6 | Online decision layer | — | not started |
@@ -196,6 +196,29 @@ Three findings that downstream stages depend on:
   larger: IPN's B0A/B0B are long resting/transition spans, median ~7 s, not brief commands. The
   three together are 82% of frames. Stage 5's class balancing and Stage 7's false-alarm metric
   both need to reckon with that, and Phase 2's SOS recordings will not have this shape.
+
+### What Stage 2 established
+
+Frozen split `ipn_official`: **30 train / 7 val / 13 test subjects**, 120 / 28 / 52 videos.
+`tests/test_splits.py` is the gate; 34 tests, `pytest -m splits`.
+
+- **The test set is the dataset authors' own.** `meta.yaml`'s `source_split` marks 13 subjects
+  as test and that partition is subject-disjoint under our `<camera>_<subject>` identity. Not
+  having chosen the test set is the strongest available form of "never tuned against" — it
+  forecloses the question of whether seeds were tried until the numbers looked good.
+- **The primary validation set IS LOSGO fold 0**, not a separate draw. If it were drawn
+  separately those subjects would be *training* subjects in most CV folds, and Stage 8's
+  variance estimate would be bounding a different experiment from the headline number.
+- **Splits are frozen to `data/<dataset>/splits/<name>.json` and committed.** Everything else
+  under `data/` is a regenerable cache; the split file is the evidence behind Rule 3, so
+  `.gitignore` carves out an exception for it. `make_splits.py` refuses to overwrite one
+  without `--force` and reports which subjects would move.
+- **`splits.py` never learns what IPN Hand is.** The adapter surfaces the publisher's
+  partition as `source_split` and per-subject metadata as `subject_attributes`, both generic
+  names. Recording is not assigning — Stage 2 still decides. Phase 2 inherits this for free.
+- `validation.require_splits` is now **on**. The synthetic fixture was resized to 12 subjects
+  and now carries a frozen split of its own, so it stays a *complete* canonical dataset rather
+  than one that passes only the checks that were on when it was written.
 
 ### Stage 3 — backbone preference order
 

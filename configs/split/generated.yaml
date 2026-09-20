@@ -1,0 +1,13 @@
+# Default split policy for a dataset with no publisher partition -- the synthetic fixture
+# now, and the author's own SOS recordings at Phase 2.
+#
+# Everything is drawn here, so the seed is load-bearing: it is the only thing standing
+# between "a frozen split" and "whatever the split happened to be this time".
+
+name: generated
+seed: 1337
+test_source: generated
+test_fraction: 0.2
+num_folds: 5
+primary_val_fold: 0
+stratify_by: []

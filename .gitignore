@@ -5,7 +5,7 @@
 #
 # Leading slashes are load-bearing: an unanchored `data/` matches at ANY depth and
 # would silently exclude src/data/, the most important package in the repo.
-/data/
+/data/**
 /raw/
 # The downloaded archives themselves. 28 GB of zips sitting in the working tree is one
 # stray `git add .` away from a very bad afternoon.
@@ -20,6 +20,14 @@
 *.pth
 *.ckpt
 *.tfevents.*
+
+# Exception: the frozen split files. Everything else under data/ is a regenerable cache,
+# but a frozen split is the evidence behind Hard Rule 3 -- it is what lets a reader (or an
+# examiner) confirm that the split behind a reported number never moved. It is a few KB of
+# JSON and it belongs in version control, not in a cache directory.
+!/data/*/
+!/data/*/splits/
+!/data/*/splits/*.json
 
 # Exception: hand-made fixtures that cannot be regenerated from a script.
 !tests/fixtures/**

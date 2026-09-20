@@ -58,8 +58,13 @@ under ``(camera, subject)`` while eight bare subject tokens straddle it. So ``su
 is ``"<camera>_<subject>"``. Getting this wrong is a Hard Rule 3 violation with a
 plausible-looking accuracy attached to it.
 
-*Splits.* The ``Set`` column is ignored on purpose. Adapters do not assign splits; Stage 2
-generates subject-disjoint splits and freezes them to disk.
+*Splits.* The ``Set`` column is never written to ``annotations.csv``. Adapters do not
+assign splits; Stage 2 generates them and freezes them to disk. It *is* recorded in
+``meta.yaml`` as ``source_split``, a generic "the publisher's own recommended partition"
+field, so that Stage 2 can choose to honour it without ``splits.py`` ever learning what
+IPN Hand is. Same for ``subject_attributes``: the per-subject metadata a splitter may want
+to stratify on, keyed by attribute name rather than by dataset. Recording is not
+assigning -- Stage 2 still decides, and still freezes the result itself.
 
 *Features.* Not written here. Stage 3 extracts them into ``features/``; until then the
 dataset is annotation-only and ``validation.require_features`` stays off.
@@ -118,9 +123,22 @@ class IPNHandAdapter(DatasetAdapter):
 
     name = "ipn_hand"
 
+    #: Columns of metadata.csv carried through as per-subject attributes, under the
+    #: generic names a splitter or a Stage 8 breakdown would ask for.
+    SUBJECT_ATTRIBUTE_COLUMNS = {
+        "Sex": "sex",
+        "Hand": "hand",
+        "Background": "background",
+        "Illumination": "illumination",
+        "People in Scene": "people_in_scene",
+        "Background Motion": "background_motion",
+    }
+
     def __init__(self, config: AdapterConfig) -> None:
         super().__init__(config)
         self._stats: dict[str, Any] = {}
+        self._source_split: dict[str, str] = {}
+        self._subject_attributes: dict[str, dict[str, Any]] = {}
 
     # -- interface ----------------------------------------------------------------
 
@@ -164,6 +182,7 @@ class IPNHandAdapter(DatasetAdapter):
             )
 
         overcounts = self._reconcile_lengths(lengths, declared)
+        self._collect_subject_metadata(metadata)
 
         none_rows_added = 0
         for video_id, rows in annot.groupby("video", sort=True):
@@ -230,10 +249,57 @@ class IPNHandAdapter(DatasetAdapter):
                 "metadata.csv's Set column is not used. Stage 2 generates and freezes "
                 "subject-disjoint splits (CLAUDE.md Rule 3)."
             ),
+            "source_split": self._source_split,
+            "subject_attributes": self._subject_attributes,
             "computed": dict(self._stats),
         }
 
     # -- internals ----------------------------------------------------------------
+
+    def _collect_subject_metadata(self, metadata: "pd.DataFrame") -> None:
+        """Record the publisher's partition and the per-subject attributes.
+
+        Both go into meta.yaml under generic keys. Nothing downstream may ask "is this IPN
+        Hand?"; it asks "does this dataset carry a recommended partition?" and "what
+        attributes do its subjects have?". That is what keeps Phase 2 to one new adapter.
+
+        An attribute that varies across a subject's videos is kept as a sorted list rather
+        than collapsed to one value -- a subject who recorded under both plain and
+        cluttered backgrounds genuinely has both, and flattening that would quietly
+        mislead a stratified split.
+        """
+        frame = metadata.copy()
+        frame["subject_id"] = [subject_of(str(v)) for v in frame["Video Name"]]
+        frame["camera"] = [str(v).split("_")[0] for v in frame["Video Name"]]
+
+        if "Set" in frame.columns:
+            per_subject = frame.groupby("subject_id")["Set"].unique()
+            straddling = {s: sorted(v) for s, v in per_subject.items() if len(v) > 1}
+            if straddling:
+                raise ValueError(
+                    f"{len(straddling)} subject(s) appear in more than one of "
+                    f"{METADATA_FILE}'s Set values: {dict(list(straddling.items())[:3])}. "
+                    "The publisher's own partition is not subject-disjoint, so it must not "
+                    "be offered to Stage 2 as one."
+                )
+            self._source_split = {
+                str(subject): str(values[0]).strip()
+                for subject, values in per_subject.items()
+            }
+
+        attributes: dict[str, dict[str, Any]] = {}
+        for subject, rows in frame.groupby("subject_id"):
+            entry: dict[str, Any] = {"camera": str(rows["camera"].iloc[0])}
+            entry["num_videos"] = int(len(rows))
+            for column, key in self.SUBJECT_ATTRIBUTE_COLUMNS.items():
+                if column not in rows.columns:
+                    continue
+                # .strip(): metadata.csv contains at least one 'Clutter ' with a trailing
+                # space, which would otherwise become a stratum of its own.
+                values = sorted({str(v).strip() for v in rows[column]})
+                entry[key] = values[0] if len(values) == 1 else values
+            attributes[str(subject)] = entry
+        self._subject_attributes = attributes
 
     def _reconcile_lengths(
         self, lengths: dict[str, int], declared: dict[str, int]

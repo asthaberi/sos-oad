@@ -18,6 +18,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from src.data import splits as S  # noqa: E402
+from src.data import canonical as C  # noqa: E402
 from src.data.adapters.synthetic import make_synthetic_dataset  # noqa: E402
 from src.utils import config as config_utils  # noqa: E402
 from src.utils.logging import get_logger  # noqa: E402
@@ -49,6 +51,26 @@ def main() -> int:
     options = config_utils.to_dict(cfg.dataset)
     log.info("generating synthetic dataset at %s", args.out)
     report = make_synthetic_dataset(args.out, **options)
+
+    # Freeze and apply a split, so the fixture is a *complete* canonical dataset rather
+    # than one that only passes the checks that happened to be on when it was written.
+    # Stage 2 turned validation.require_splits on; a fixture without splits would now be
+    # inadmissible, and the fixture is supposed to be the known-good example.
+    dataset = C.CanonicalDataset(args.out)
+    spec = S.SplitSpec.from_config(config_utils.to_dict(cfg.split))
+    assignment = S.generate(dataset, spec)
+    problems = S.verify(assignment, dataset)
+    if problems:
+        log.error("generated fixture split failed verification: %s", problems)
+        return 1
+    S.freeze(assignment, args.out)
+    S.apply(args.out, assignment)
+    log.info(
+        "froze split %r: %s",
+        spec.name,
+        {split: len(assignment.subjects(split)) for split in C.VALID_SPLITS},
+    )
+    report = C.validate_dataset(args.out, require_splits=True)
 
     print()
     print(report.render())

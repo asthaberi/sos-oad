@@ -1,0 +1,30 @@
+# Primary frozen split for IPN Hand.
+#
+# The test set is the dataset authors' own: meta.yaml's `source_split` marks 13 of the 50
+# subjects as test, and that partition is subject-disjoint under our `<camera>_<subject>`
+# identity (verified at Stage 1 -- zero subjects straddle it).
+#
+# Using the publisher's test set rather than drawing our own is a deliberate choice about
+# defensibility, not convenience. It answers "why this split?" with "the authors' ", it
+# lets Stage 4 sanity-check against published IPN numbers, and it forecloses the question
+# of whether several seeds were tried until the numbers looked good. Hard Rule 3 says the
+# test set is never tuned against; not having chosen it is the strongest form of that.
+
+name: ipn_official
+seed: 1337
+test_source: publisher       # honour meta.yaml's source_split
+publisher_test_value: test
+
+# Leave-one-subject-group-out over the 37 non-test subjects. Five folds of 7-8 subjects:
+# enough for the Stage 8 subject-variance estimate at 5x training cost, where
+# leave-one-subject-out would be 37x and the training hardware is still undecided.
+num_folds: 5
+
+# The primary validation set IS fold 0, not a separate draw, so cross-validation stays a
+# strict superset of the primary experiment. See src/data/splits.py.
+primary_val_fold: 0
+
+# Camera correlates with background, lighting and rig, and it is very unbalanced across
+# subjects (18 / 16 / 12 / 4). Left unbalanced, a fold could be systematically easier or
+# harder than the headline split and the variance estimate would absorb that as noise.
+stratify_by: [camera]
