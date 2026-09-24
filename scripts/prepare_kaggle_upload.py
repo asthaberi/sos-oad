@@ -1,7 +1,13 @@
 """Stage the IPN Hand frames for upload to Kaggle as a private dataset.
 
     python scripts/prepare_kaggle_upload.py
-    kaggle datasets create -p raw/kaggle_upload --dir-mode tar
+    cd raw/kaggle_upload && kaggle datasets create -p .
+
+Run it from *inside* the staging directory with ``-p .``. The CLI (2.2.4 on Windows) builds
+its per-file resume-cache name by pasting the ``-p`` value into a filename, so
+``-p raw/kaggle_upload`` yields ``...\uploads\raw/kaggle_upload_Annot_List.txt.json`` and
+fails with ENOENT because ``uploads\raw\`` does not exist. ``-p .`` keeps a path separator
+out of the derived name.
 
 Builds ``raw/kaggle_upload/`` containing exactly what the Kaggle extraction notebook needs
 and nothing else:
@@ -9,8 +15,8 @@ and nothing else:
 * the five ``frames0N.tgz`` archives -- **five files, not 800k JPEGs**. Kaggle handles a
   few large files far better than hundreds of thousands of small ones, and the notebook
   untars only the shard it is working on.
-* the ``annotations/`` folder, so the notebook can regenerate ``annotations.csv`` with the
-  adapter rather than trusting a copied one.
+* the annotation text files, flattened to the top level, so the notebook can regenerate
+  ``annotations.csv`` with the adapter rather than trusting a copied one.
 
 The archives are **hard-linked**, not copied, so staging 9 GB costs no extra disk and takes
 no time. They are on the same volume, which is what makes that possible.
@@ -37,17 +43,33 @@ from src.utils.logging import get_logger  # noqa: E402
 log = get_logger("kaggle-upload")
 
 SLUG = "ipn-hand-frames"
-CREDENTIALS = Path.home() / ".kaggle" / "kaggle.json"
+
+#: The CLI supports two auth schemes and they store different things. The older one writes
+#: ~/.kaggle/kaggle.json containing the username outright; the newer one writes an opaque
+#: KGAT_ token to ~/.kaggle/access_token and the username has to be asked for.
+LEGACY_CREDENTIALS = Path.home() / ".kaggle" / "kaggle.json"
+TOKEN_FILE = Path.home() / ".kaggle" / "access_token"
 
 
 def kaggle_username() -> str | None:
-    """Read the username from the Kaggle credentials file, if it is there yet."""
-    if not CREDENTIALS.is_file():
-        return None
-    try:
-        return str(json.loads(CREDENTIALS.read_text(encoding="utf-8"))["username"])
-    except Exception:  # noqa: BLE001 - a malformed file is not worth a traceback
-        return None
+    """Find the authenticated username, whichever auth scheme is in use.
+
+    Never reads or echoes the token itself -- only the username it resolves to.
+    """
+    if LEGACY_CREDENTIALS.is_file():
+        try:
+            return str(json.loads(LEGACY_CREDENTIALS.read_text(encoding="utf-8"))["username"])
+        except Exception:  # noqa: BLE001 - a malformed file is not worth a traceback
+            pass
+
+    if TOKEN_FILE.is_file() or os.environ.get("KAGGLE_API_TOKEN"):
+        try:
+            from kaggle import api
+
+            return str(api.get_config_value("username")) or None
+        except Exception:  # noqa: BLE001 - not authenticated, or the CLI is absent
+            return None
+    return None
 
 
 def link_or_copy(source: Path, target: Path) -> str:
@@ -94,8 +116,19 @@ def main() -> int:
         total += size
         log.info("%-8s %s (%.2f GB)", action, archive.name, size / 1e9)
 
-    shutil.copytree(annotations, args.out / "annotations", dirs_exist_ok=True)
-    log.info("copied annotations/ (%d files)", len(list(annotations.iterdir())))
+    # Flattened, not left as a subdirectory. `kaggle datasets create` needs --dir-mode to
+    # handle a folder, which tars or zips it, and then what actually lands in
+    # /kaggle/input depends on whether Kaggle unpacks it -- an avoidable unknown for eight
+    # small text files. At the top level they arrive verbatim.
+    copied = 0
+    for source in sorted(annotations.iterdir()):
+        if source.is_file():
+            shutil.copy2(source, args.out / source.name)
+            copied += 1
+    stale = args.out / "annotations"
+    if stale.is_dir():
+        shutil.rmtree(stale)
+    log.info("copied %d annotation file(s) to the upload root", copied)
 
     username = args.username or kaggle_username()
     metadata = {
@@ -120,15 +153,15 @@ def main() -> int:
     print(f"staged {len(archives)} archive(s) + annotations in {args.out}  ({total / 1e9:.1f} GB)")
     print()
     if username:
-        print("Credentials found. Upload with:")
+        print(f"Authenticated as {username}. Upload with:")
     else:
-        print("No ~/.kaggle/kaggle.json yet. Once the CLI is set up, re-run this script")
-        print("(it fills in your username), then upload with:")
+        print("Not authenticated yet. Save a token to ~/.kaggle/access_token (or set")
+        print("KAGGLE_API_TOKEN), re-run this script so it fills in your username, then:")
     print()
-    print(f"    kaggle datasets create -p {args.out} --dir-mode tar")
+    print(f"    kaggle datasets create -p {args.out}")
     print()
     print("Creates a PRIVATE dataset. Resumes if interrupted. For a later revision:")
-    print(f"    kaggle datasets version -p {args.out} -m 'note' --dir-mode tar")
+    print(f"    kaggle datasets version -p {args.out} -m 'note'")
     return 0
 
 
