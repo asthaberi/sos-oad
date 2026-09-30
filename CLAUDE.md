@@ -63,8 +63,22 @@ set is never tuned against — model selection uses validation only.
 
 ### Rule 4 — Everything is logged
 
-TensorBoard (default) or W&B. Config, seed, git SHA, and metrics for every run. A result with no
-run directory behind it does not exist.
+**W&B is the default tracker** (set 2026-09-30); TensorBoard remains available via
+`logging.backend`. Config, seed, git SHA, and metrics for every run.
+
+**The tracker is a dashboard, not the record.** A result with no run directory behind it does
+not exist — that wording is load-bearing. Scalars are mirrored to
+`runs/<run>/metrics/scalars.jsonl` whatever the backend, and the run directory also holds the
+resolved config, `provenance.json` (commit, dirty flag, seeds, environment) and the metric
+dumps. A hosted service can be deleted, rate-limited, moved between accounts or unreachable
+from the machine marking the thesis; the run directory survives all of it.
+
+The commit, branch, dirty flag and seed are pushed into W&B's own config, so a run in the
+dashboard answers "which code produced this?" without leaving the page. LOSGO folds share a
+`group` so the five folds of one experiment aggregate instead of appearing as five unrelated
+curves. If W&B cannot authenticate, the run **degrades to offline with a warning** rather than
+dying — losing a twelve-hour GPU session to a missing API key would be absurd when the scalars
+are on disk anyway. Buffered runs upload later with `wandb sync`.
 
 ### Rule 5 — The dataset adapter boundary is sacred
 

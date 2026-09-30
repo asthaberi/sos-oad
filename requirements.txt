@@ -17,7 +17,8 @@ pandas==2.2.3            # annotations.csv
 PyYAML==6.0.2            # classes.txt sidecar metadata, meta.yaml
 omegaconf==2.3.0         # config composition and dotlist overrides
 torch==2.5.1             # CPU wheel on Windows/macOS from PyPI by default
-tensorboard==2.18.0      # Hard Rule 4
+tensorboard==2.18.0      # Hard Rule 4, alternative backend
+wandb==0.30.0            # Hard Rule 4, default backend
 tqdm==4.67.1
 
 # --- Stage 3: feature extraction ---

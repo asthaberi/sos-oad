@@ -14,6 +14,8 @@ import pytest
 import yaml
 
 from src.utils import config as config_utils
+from types import SimpleNamespace
+
 from src.utils.logging import MetricLogger
 from src.utils.run import create_run, environment_provenance, git_provenance
 from src.utils.seeding import set_seed
@@ -258,3 +260,173 @@ def test_metric_logger_skips_none_values(tmp_path: Path) -> None:
         logger.log_scalars({"a": None, "b": 1.0}, step=0)
     line = json.loads((tmp_path / "metrics" / "scalars.jsonl").read_text(encoding="utf-8"))
     assert line == {"step": 0, "b": 1.0}
+
+
+# ----------------------------------------------------------------------------------
+# W&B backend
+#
+# These run the real wandb code path with mode="disabled", which needs no network and no
+# login. Mocking wandb.init would only assert that we call a function we wrote the call
+# for; letting the library validate its own arguments is the part worth testing.
+# ----------------------------------------------------------------------------------
+
+
+def test_wandb_backend_still_mirrors_scalars_to_the_run_directory(tmp_path: Path) -> None:
+    """The mirror is the record. Rule 4 does not rely on a hosted service being reachable."""
+    with MetricLogger(backend="wandb", run_dir=tmp_path, mode="disabled") as logger:
+        logger.log_scalars({"loss": 1.5, "map": 0.25}, step=0)
+        logger.log_scalar("loss", 1.25, step=1)
+
+    lines = (tmp_path / "metrics" / "scalars.jsonl").read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 2
+    assert json.loads(lines[0]) == {"step": 0, "loss": 1.5, "map": 0.25}
+    assert json.loads(lines[1]) == {"step": 1, "loss": 1.25}
+
+
+def test_wandb_mode_is_validated(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="online, offline or disabled"):
+        MetricLogger(backend="wandb", run_dir=tmp_path, mode="sometimes")
+
+
+def test_from_config_reads_the_tracker_settings(tmp_path: Path) -> None:
+    """Nothing about the tracker may be hardcoded; it all arrives from config."""
+    from omegaconf import OmegaConf
+
+    cfg = OmegaConf.create(
+        {
+            "seed": 1337,
+            "logging": {
+                "backend": "wandb",
+                "project": "thesis-project",
+                "entity": None,
+                "mode": "disabled",
+                "tags": ["stage4"],
+            },
+        }
+    )
+    run = SimpleNamespace(path=tmp_path, name="b1-baseline", provenance={})
+    with MetricLogger.from_config(cfg, run) as logger:
+        assert logger.backend == "wandb"
+        logger.log_scalar("loss", 0.5, step=0)
+    assert (tmp_path / "metrics" / "scalars.jsonl").is_file()
+
+
+def test_from_config_defaults_to_wandb_when_logging_is_absent(tmp_path: Path) -> None:
+    """No logging section still resolves the declared default rather than losing runs."""
+    from omegaconf import OmegaConf
+
+    cfg = OmegaConf.create({"seed": 1, "logging": {"mode": "disabled"}})
+    logger = MetricLogger.from_config(cfg, SimpleNamespace(path=tmp_path, name="x", provenance={}))
+    assert logger.backend == "wandb"
+    logger.close()
+
+
+def test_missing_api_key_degrades_to_offline_instead_of_killing_the_run(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """An unauthenticated tracker must not take a twelve-hour training run with it.
+
+    W&B raises when no API key is configured. Failing there would lose a GPU session to a
+    missing credential, and the scalars are mirrored to the run directory regardless, so
+    there is nothing to gain by failing. It degrades to offline and says so.
+    """
+    import wandb
+
+    real_init = wandb.init
+    calls: list[str] = []
+
+    def flaky(**kwargs):
+        calls.append(kwargs["mode"])
+        if kwargs["mode"] == "online":
+            raise wandb.errors.UsageError("No API key configured.")
+        return real_init(**kwargs)
+
+    monkeypatch.setattr(wandb, "init", flaky)
+
+    # get_logger sets propagate=False so scripts do not double-print, which also means
+    # caplog's root handler never sees these records. Attach one directly.
+    import logging as _logging
+
+    records: list[_logging.LogRecord] = []
+
+    class Capture(_logging.Handler):
+        def emit(self, record: _logging.LogRecord) -> None:
+            records.append(record)
+
+    handler = Capture()
+    _logging.getLogger("metrics").addHandler(handler)
+    try:
+        MetricLogger(backend="wandb", run_dir=tmp_path, mode="online").close()
+    finally:
+        _logging.getLogger("metrics").removeHandler(handler)
+
+    assert calls == ["online", "offline"]
+    assert any("falling back to offline" in r.getMessage().lower() for r in records)
+
+
+def test_an_explicitly_offline_failure_is_not_swallowed(tmp_path: Path, monkeypatch) -> None:
+    """The fallback exists for the online case only. If offline itself fails, that is a
+    real problem with the run directory or the install, and hiding it would be worse."""
+    import wandb
+
+    def always_fails(**kwargs):
+        raise RuntimeError("disk full")
+
+    monkeypatch.setattr(wandb, "init", always_fails)
+    with pytest.raises(RuntimeError, match="disk full"):
+        MetricLogger(backend="wandb", run_dir=tmp_path, mode="offline")
+
+
+def test_provenance_is_carried_into_the_tracker_config(tmp_path: Path, monkeypatch) -> None:
+    """A dashboard that cannot answer 'which commit produced this?' is a pretty chart.
+
+    Rule 4 wants config, seed and git SHA for every run, so the commit and seed are pushed
+    into W&B's own config rather than living only in provenance.json.
+    """
+    captured: dict = {}
+
+    import wandb
+
+    real_init = wandb.init
+
+    def spy(**kwargs):
+        captured.update(kwargs)
+        return real_init(**kwargs)
+
+    monkeypatch.setattr(wandb, "init", spy)
+
+    provenance = {
+        "git": {"commit": "abc1234", "branch": "main", "dirty": False},
+        "seeding": {"seed": 1337},
+    }
+    MetricLogger(
+        backend="wandb",
+        run_dir=tmp_path,
+        mode="disabled",
+        run_name="fold0",
+        group="m1-losgo",
+        tags=["stage5"],
+        config={"model": "m1"},
+        provenance=provenance,
+    ).close()
+
+    assert captured["config"]["git_commit"] == "abc1234"
+    assert captured["config"]["git_branch"] == "main"
+    assert captured["config"]["seed"] == 1337
+    assert captured["config"]["model"] == "m1"
+    assert captured["group"] == "m1-losgo"
+    assert captured["tags"] == ["stage5"]
+
+
+def test_losgo_folds_can_share_a_group(tmp_path: Path) -> None:
+    """Five folds of one experiment belong together in the dashboard, not as five
+    unrelated curves. The group is per-run, so it is passed rather than configured."""
+    from omegaconf import OmegaConf
+
+    cfg = OmegaConf.create({"logging": {"backend": "wandb", "mode": "disabled"}})
+    for fold in range(3):
+        run = SimpleNamespace(path=tmp_path / f"f{fold}", name=f"fold{fold}", provenance={})
+        with MetricLogger.from_config(cfg, run, group="m1-losgo") as logger:
+            logger.log_scalar("val/map", 0.4 + fold / 100, step=0)
+    for fold in range(3):
+        assert (tmp_path / f"f{fold}" / "metrics" / "scalars.jsonl").is_file()

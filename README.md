@@ -152,6 +152,32 @@ applied, never re-drawn:
 python scripts/make_splits.py --set dataset=ipn_hand split=ipn_official --apply-frozen
 ```
 
+### Experiment tracking
+
+Weights & Biases is the default backend; TensorBoard and `none` are also available. Log in once:
+
+```powershell
+wandb login
+```
+
+Without a key, runs degrade to **offline** with a warning rather than failing — useful on Kaggle,
+where a session may have no stored credential. Upload buffered runs afterwards:
+
+```powershell
+wandb sync runs/<run>/wandb/offline-run-*
+```
+
+Switch backend or project per run:
+
+```powershell
+python scripts/<any>.py --set logging.backend=tensorboard
+python scripts/<any>.py --set logging.mode=offline logging.project=sos-oad-dev
+```
+
+Whatever the backend, scalars are mirrored to `runs/<run>/metrics/scalars.jsonl` alongside the
+resolved config and `provenance.json`. That directory, not the dashboard, is what a reported
+number traces back to.
+
 Validate any canonical dataset, with strictness that ratchets up per stage:
 
 ```powershell

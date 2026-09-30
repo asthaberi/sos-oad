@@ -26,8 +26,19 @@ paths:
   raw_root: raw          # unconverted downloads; adapter input only
   runs_root: runs        # logs, checkpoints, metrics, figures
 
+# Experiment tracking. The tracker is a dashboard; the run directory is the record.
+# Scalars are mirrored to runs/<run>/metrics/scalars.jsonl whatever the backend, because
+# Rule 4 says a result with no run directory behind it does not exist -- and a hosted
+# service can be deleted, rate-limited or unreachable from the machine marking the thesis.
 logging:
-  backend: tensorboard   # tensorboard | wandb | none
+  backend: wandb         # wandb | tensorboard | none
+  project: sos-oad
+  entity: null           # W&B team; null uses your default account
+  # online writes live; offline buffers to disk for `wandb sync` later, which is what a
+  # Kaggle session without a stored API key needs; disabled runs the code path and sends
+  # nothing, which is what the tests use.
+  mode: online
+  tags: []
   log_every_n_steps: 20
 
 # Validation strictness. These tighten as stages land, rather than being relaxed later
