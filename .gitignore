@@ -38,6 +38,10 @@
 # reads. Regenerate it with: python scripts/make_fixture.py --force
 tests/fixtures/synthetic/
 
+# Rendered sample clips. Megabytes of GIF, regenerable with
+# scripts/make_sample_clip.py, so kept out of history.
+/reports/samples/
+
 # --- python ---
 __pycache__/
 *.py[cod]
