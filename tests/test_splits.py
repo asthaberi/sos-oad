@@ -414,9 +414,20 @@ def test_unknown_config_key_is_rejected():
 # ----------------------------------------------------------------------------------
 
 REAL_ROOT = Path("data/ipn_hand")
+
+#: Guard on the *dataset*, not on the split file.
+#:
+#: The frozen split is the one artefact under data/ that is committed to git, which makes
+#: it the worst possible sentinel for "has the dataset been built here?" -- on a fresh
+#: clone it is always present while annotations.csv, classes.txt and meta.yaml are not, so
+#: a guard on it lets these tests run against a dataset that does not exist. Found by
+#: cloning onto a GPU server: these failed where the Stage 1 tests correctly skipped.
+#:
+#: Both conditions are required: the dataset has to be converted *and* the split frozen.
 needs_real = pytest.mark.skipif(
-    not S.split_path(REAL_ROOT, "ipn_official").is_file(),
-    reason="run scripts/make_splits.py first",
+    not (REAL_ROOT / C.ANNOTATIONS_FILE).is_file()
+    or not S.split_path(REAL_ROOT, "ipn_official").is_file(),
+    reason="run scripts/prepare_ipn_hand.py then scripts/make_splits.py first",
 )
 
 

@@ -7,12 +7,22 @@
 #   pip install -r requirements.txt
 #   pip install -r requirements-cuda.txt
 #
-# Adjust the index URL to match the cluster's CUDA runtime:
+# Adjust the index URL to match the machine's CUDA runtime:
 #   cu118 -> https://download.pytorch.org/whl/cu118
 #   cu121 -> https://download.pytorch.org/whl/cu121
 #   cu124 -> https://download.pytorch.org/whl/cu124
+#
+# Set to cu124 on 2026-10-04 for the lab GPU box (nsp-office): NVIDIA RTX A4000, 16 GB,
+# driver 571.96 / CUDA 12.8. A cu124 build runs on a 12.8 driver -- CUDA minor versions
+# are forward compatible -- and cu128 wheels were not published for this torch release.
+#
+# The version here is deliberately AHEAD of the CPU pin in requirements.txt (2.5.1).
+# They are allowed to differ because only this file's install ever produces a feature
+# cache, and the exact torch version of every run is recorded in the run directory's
+# provenance.json. A number therefore remains traceable to the build that produced it,
+# which is what Rule 4 asks for -- it does not require both machines to be identical.
 
---extra-index-url https://download.pytorch.org/whl/cu121
+--extra-index-url https://download.pytorch.org/whl/cu124
 
-torch==2.5.1
-torchvision==0.20.1
+torch==2.6.0
+torchvision==0.21.0
