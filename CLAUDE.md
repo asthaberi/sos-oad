@@ -161,23 +161,30 @@ Where Stage 3 extraction and all later training runs happen.
 
 Rules that follow from this, and that cost real time when forgotten:
 
-- **All work stays inside `D:\ASTHA_BERI\`.** Imposed by the lab and by the author; the machine
-  and the `nspunn` account are shared, so `C:\Users\nspunn\...` belongs to everyone. Tools
-  write there by default and must be redirected, per command, without changing anyone's
-  global settings:
-  - `HF_HOME=D:\ASTHA_BERI\hf_cache` — otherwise the checkpoint lands in the shared
-    `C:\Users\nspunn\.cache\huggingface`, and importing transformers there runs a cache
-    migration that writes into it.
-  - `PIP_CACHE_DIR=D:\ASTHA_BERI\pip_cache` (or `--no-cache-dir`) for every pip call.
+- **All work stays inside `D:\ASTHA_BERI\`, and only the author's own accounts are used.**
+  Imposed by the lab and by the author; the machine and the `nspunn` login are shared, so
+  `C:\Users\nspunn\...` belongs to everyone. Tools write there by default and must be
+  redirected without changing anyone's global settings. **Every session starts with the setup
+  script**, which activates `astha_312` and redirects temp, pip / HF / torch / matplotlib /
+  Kaggle caches and all W&B state into the folder:
+  - PowerShell: `Set-ExecutionPolicy -Scope Process Bypass; . D:\ASTHA_BERI\astha_env.ps1`
+  - Git Bash (the assistant's scripted calls): `source /d/ASTHA_BERI/astha_env.sh`
   - Temporary files and ad-hoc check scripts go in `D:\ASTHA_BERI\tmp`, never the system temp.
-- **Use only the author's environment, `astha_312`.** Call its interpreter by full path. Plain
-  `python` on `PATH` is the Windows Store Python, which has no torch; other users' envs
-  (`D:\AMAN_RAJ_VERMA\envs\...`) are not to be used.
-- **Commit as the author, set per command.** The global git identity on `nspunn` belongs to
-  another lab member. Every commit uses
-  `git -c user.name=asthaberi -c user.email=asthaberi.pro@gmail.com commit ...`; the global
-  config is never edited. Do not push from this machine with whatever credentials are stored on
-  the shared account — pushing is the author's to do as `asthaberi`.
+- **Use only the author's environment, `astha_312`.** If an environment is ever missing, create
+  a new one inside `D:\ASTHA_BERI` named for the author — never use another user's env or the
+  shared conda install outside the folder. Plain `python` on `PATH` is the
+  Windows Store Python, which has no torch.
+- **W&B: the author's account only.** The shared login already holds another user's W&B login
+  and settings in its home folder. The setup script points `NETRC` and `WANDB_CONFIG_DIR`
+  inside `D:\ASTHA_BERI`, which hides both; the only
+  credential W&B can then see is `WANDB_API_KEY`, set by hand per terminal. Never run
+  `wandb login` on this machine. Without the setup script a run would log into the other
+  user's account.
+- **GitHub: the author's account only.** The global git identity on `nspunn` belongs to another
+  lab member. The repo's own `.git/config` sets `user.name=asthaberi`,
+  `user.email=asthaberi.pro@gmail.com`, and an empty `credential.helper`, so a push asks for the
+  author's token and never stores it in the shared Windows credential store. The global config
+  is never edited. Pushing is the author's to do.
 - **The GPU is shared and often busy.** Another user's job (`...VERMA\envs\wcfall`) was holding
   1.5 GB and 63% utilisation when first checked. Size batches so a concurrent job does not get
   OOM-killed, and measure with `--limit 2` before committing to a long run.
@@ -501,6 +508,11 @@ runs/               gitignored. Logs, checkpoints, metrics.
 
 ## 7. Notes for the assistant
 
+- **Keep `D:\ASTHA_BERI\log.md` current.** It is the author's thesis-writing log on the GPU
+  server: after every meaningful step add what was done, why, the result with its run
+  directory, problems and their fixes, and which thesis chapter it feeds. Written for the
+  author, not for the assistant; no AI attribution (Rule 7). It lives outside the public
+  repo deliberately, so similarity checkers cannot match the thesis against it.
 - Stage gates are real. Show output, stop, wait.
 - When a published number does not reproduce, say so plainly with the numbers. Do not round toward
   the paper.
