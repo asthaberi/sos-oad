@@ -141,7 +141,44 @@ A schema validator enforces all of the above. Any adapter's output must pass it.
 
 ## 4. Environment
 
-Facts established 2026-09-15 on the author's machine:
+Two machines. The **laptop** writes code and runs tests; the **lab GPU server** runs anything
+that needs CUDA. The feature cache is produced on the server and is portable by design.
+
+### 4a. The GPU server — `nsp-office` (added 2026-10-04)
+
+Where Stage 3 extraction and all later training runs happen.
+
+| | |
+|---|---|
+| Host | `nsp-office`, `100.72.247.51`, reached over **Tailscale** (lab tailnet `nsplabiiitm@`) |
+| OS | **Windows**, PowerShell **5.1** |
+| Login | user `nspunn` (a lab account, not the author's own) |
+| GPU | **NVIDIA RTX A4000, 16 GB**, driver 571.96, CUDA 12.8 |
+| Python | **3.12.10**, conda env `astha_312` |
+| torch | **2.6.0+cu124** (a cu124 build runs on a 12.8 driver) |
+| Repo | `D:\ASTHA_BERI\sos-oad` |
+| Disk | D: has ~3.7 TB free — not a constraint |
+
+Rules that follow from this, and that cost real time when forgotten:
+
+- **All work stays inside `D:\ASTHA_BERI\`.** Imposed by the lab; the machine is shared.
+- **The GPU is shared and often busy.** Another user's job (`...VERMA\envs\wcfall`) was holding
+  1.5 GB and 63% utilisation when first checked. Size batches so a concurrent job does not get
+  OOM-killed, and measure with `--limit 2` before committing to a long run.
+- **PowerShell 5.1 has no `&&`.** Chain with `;` or separate lines. A pasted bash one-liner fails
+  with "The token '&&' is not a valid statement separator".
+- **Python is 3.12, not the 3.11 the project targets.** The full suite passes there
+  (202 passed, 9 skipped on 2026-10-04), so this is recorded rather than a problem. The pose
+  stream at Stage 3b is the open question: MediaPipe wheels for 3.12 need checking before use.
+- **No automated SSH from the laptop.** `nspunn` is an administrator, so Windows OpenSSH reads
+  keys only from `C:\ProgramData\ssh\administrators_authorized_keys`, which needs an elevated
+  shell on the server. RDP (3389) and WinRM (5985) are closed, SMB admin shares deny access, and
+  Taildrop is blocked because laptop and server sit on different tailnets. **Access is therefore
+  VS Code Remote-SSH with a typed password**, which means a session on the laptop cannot drive the
+  server — it can only hand over commands. To fix this permanently, someone with admin on
+  `nsp-office` adds the laptop's public key to that file; it is worth asking.
+
+### 4b. The laptop (facts established 2026-09-15)
 
 - **No NVIDIA GPU here.** AMD Radeon 680M iGPU only — CUDA PyTorch will not run on this laptop.
   Training hardware is **not yet decided**. Consequences:
@@ -154,6 +191,19 @@ Facts established 2026-09-15 on the author's machine:
 - **Repo lives outside OneDrive** at `C:\Users\astha\Projects\sos-oad`. OneDrive would try to sync
   the ~800k extracted frames and the feature cache. Raw data and caches are gitignored.
 - Windows 11. Shell examples should work in PowerShell; keep scripts OS-agnostic where practical.
+
+### 4c. Moving code and data between them
+
+- **The GitHub repo is public** (made public 2026-10-04) so the server can `git clone` / `git pull`
+  without credentials. Nothing sensitive is committed; this was checked before publishing.
+- **The dataset reaches the server via Kaggle**, not by upload from the laptop: the private dataset
+  `asthaberi/ipn-hand-frames` holds the five `frames0N.tgz` archives plus the annotation files
+  flattened to the root. The lab's connection is far faster than the author's home upload. Build
+  the upload directory with `scripts/prepare_kaggle_upload.py`.
+- **`annotations.csv`, `classes.txt` and `meta.yaml` are rebuilt on each machine** by the adapter,
+  never copied — so the Stage 1 checks run there too. The **frozen split is the exception**: it is
+  committed, and is *applied* with `make_splits.py --apply-frozen`, never regenerated. Regenerating
+  it would break comparability with every number already reported.
 
 Determinism: global seed in config, seeds set for `random` / `numpy` / `torch`, deterministic cuDNN
 where it does not cost more than it is worth. Where full determinism is impractical, say so in the
@@ -168,7 +218,7 @@ run log rather than pretending.
 | 0 | Repo + canonical format + config system | Schema validator passes on a synthetic fixture | **DONE** |
 | 1 | Acquire IPN Hand, write adapter | Published figures reproduced (see below) | **DONE** |
 | 2 | Frozen subject-disjoint splits + LOSGO | Unit test: no `subject_id` in >1 split | **DONE** |
-| 3 | Feature extraction, 2 streams, cached | All 200 videos cached, shapes verified | **in progress** — RGB path built and Kaggle-ready; pose stream not started |
+| 3 | Feature extraction, 2 streams, cached | All 200 videos cached, shapes verified | **in progress** — code verified on the GPU server; extraction not yet run; pose stream not started |
 | 4 | Baselines B0 + B1 + **full** eval harness | Both baselines produce the complete metric set | not started |
 | 5 | M1 model | — | not started |
 | 6 | Online decision layer | — | not started |
@@ -276,6 +326,64 @@ blocked on the RGB backbone / hardware decision.
 - **Frames are resized full-frame, not centre-cropped.** The standard eval transform keeps only
   the middle ~75% of a 640x480 frame, and `throw_left` / `throw_right` / the zooms are lateral
   hand motions that reach the frame edges. `crop: center` is config-exposed for the ablation.
+
+### Stage 3 — where it stands on the GPU server (2026-10-04)
+
+**Done:** repo cloned to `D:\ASTHA_BERI\sos-oad`, dependencies installed, full suite green
+(202 passed, 9 skipped — the skips are real-data tests correctly waiting for the dataset).
+`torch 2.6.0+cu124 | cuda: True | NVIDIA RTX A4000` confirmed.
+
+**Not done:** the dataset is not on the server yet, and no features have been extracted anywhere.
+
+**Resume from here, in order:**
+
+```powershell
+cd D:\ASTHA_BERI\sos-oad
+
+# 1. data (needs a Kaggle token; use the env var, do not write it to disk on a shared machine)
+pip install kaggle
+$env:KAGGLE_API_TOKEN = "KGAT_..."
+kaggle datasets download asthaberi/ipn-hand-frames -p raw\kaggle_dl --unzip
+
+# 2. arrange it the way the adapter expects, then rebuild the canonical dataset
+mkdir -Force raw\IPN_Hand\annotations | Out-Null
+Move-Item raw\kaggle_dl\*.txt,raw\kaggle_dl\*.csv,raw\kaggle_dl\*.xlsx raw\IPN_Hand\annotations\
+foreach ($f in Get-ChildItem raw\kaggle_dl\frames*.tgz) { tar -xzf $f.FullName -C raw\IPN_Hand }
+python scripts/prepare_ipn_hand.py --raw raw\IPN_Hand --set dataset=ipn_hand
+python scripts/make_splits.py --set dataset=ipn_hand split=ipn_official --apply-frozen
+
+# 3. timing probe BEFORE the long run -- the GPU is shared
+python scripts/extract_features.py --set dataset=ipn_hand split=ipn_official `
+    features=videomaev2 device=cuda --limit 2
+
+# 4. the full run, then the gate
+python scripts/extract_features.py --set dataset=ipn_hand split=ipn_official `
+    features=videomaev2 device=cuda
+python scripts/extract_features.py --verify --set dataset=ipn_hand features=videomaev2
+```
+
+**Checks that matter at each step, not to be waved through:**
+
+- Step 2's Stage 1 gate must print **200 / 50 / 4,218 / 1,431 / 800,491** all matching. The dataset
+  is being rebuilt on a different machine from a different source; this is a real reproducibility
+  check. Investigate any mismatch, do not explain it away.
+- `--apply-frozen` must accept the committed split, which proves the subject digest still matches.
+  If it refuses, the dataset differs from the one the split was frozen against — stop and find out
+  why before overriding anything.
+- The probe at step 3 decides `batch_size`. **Lower it in `configs/features/videomaev2.yaml` if the
+  card is busy** — 16 at float32 on a 16 GB card shared with another job is optimistic. Whatever is
+  chosen must then stay fixed for the whole extraction: float32 matmul is not batch-size invariant,
+  so changing it mid-run makes the cache internally inconsistent and the checksums meaningless.
+- Step 4's `--verify` printing `STAGE 3 GATE: PASS` over all 200 videos is the gate. Nothing before
+  that counts as Stage 3 being done.
+- Extraction resumes automatically — already-cached videos are skipped, so a killed run is restarted
+  by re-issuing the same command. `--shard i/n` exists for splitting across sessions but is not
+  needed here, since this machine has no session cap.
+
+**Known hazard:** `_pool()` in `src/features/backbones/videomae.py` reduces whatever the checkpoint
+returns to `[B, D]`. It handles the shapes that could be anticipated without running it; the
+checkpoint has never actually been executed. If it raises *"could not reduce model output of
+shape ..."*, that shape is the information needed to fix it.
 
 ### Stage 3 — backbone preference order
 
