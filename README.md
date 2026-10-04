@@ -33,6 +33,56 @@ Class index 0 is always `none`, the non-gesture class. The whole detection probl
 and it is never dropped as background. (On IPN Hand it is the largest class by instance count but
 only the third largest by frame count — see the Stage 1 notes in `CLAUDE.md`.)
 
+## Where things live
+
+Open this first if the folder looks confusing. Two rules explain almost all of it:
+
+1. **Code is committed; data is not.** Anything under `data/`, `raw/`, `runs/` or
+   `reports/samples/` is either downloaded or regenerated, so it is deliberately kept out of git.
+   A fresh clone is ~2 MB.
+2. **Nothing is lost by deleting a regenerable folder** — the command that rebuilds it is in the
+   Reproduction section below.
+
+### Committed — this is the project
+
+| Folder | What it is |
+|---|---|
+| `src/` | The library. All the real logic lives here |
+| `scripts/` | Commands you run from a terminal. Thin wrappers around `src/` |
+| `configs/` | Settings, as YAML. Nothing important is hardcoded outside here |
+| `tests/` | Automatic checks. `pytest` runs them all |
+| `notebooks/` | The Kaggle extraction notebook |
+| `reports/` | Progress report, panel report, presentation |
+| `CLAUDE.md` | The project contract: rules, stage plan, decisions and why |
+| `README.md` | This file — setup and reproduction commands |
+
+### Not committed — downloaded or generated
+
+| Folder | What it is | Size | Rebuild with |
+|---|---|---|---|
+| `data/<dataset>/` | The dataset in canonical format | ~2 GB | `scripts/prepare_ipn_hand.py` |
+| `data/*/splits/*.json` | **The frozen split — this one IS committed** | 10 KB | never regenerate; apply with `--apply-frozen` |
+| `raw/IPN_Hand/` | Extracted frames and annotations | ~20 GB | re-extract from the archives |
+| `runs/` | One folder per execution: config, provenance, metrics | small | produced by each run |
+| `reports/samples/` | Rendered sample clips | ~20 MB | `scripts/make_sample_clip.py` |
+| `.venv/` | The Python environment | ~5 GB | `pip install -r requirements.txt` |
+| `IPN hand Dataset/` | The original download, 16 zip archives | ~28 GB | re-download from the dataset authors |
+
+### The one exception worth knowing
+
+`data/` is gitignored **except** `data/*/splits/*.json`. The frozen split is the evidence behind
+Hard Rule 3 — it is what proves the split behind a reported number never moved — so it belongs in
+version control even though everything around it does not.
+
+### Which machine has what
+
+Code is identical on both (`git pull`). Data is not:
+
+- **Laptop** — writes code, runs tests. Has the original download and the extracted frames from
+  the Stage 1 work. Does not need them any more: extraction now happens on the GPU server.
+- **GPU server** (`D:\ASTHA_BERI\sos-oad`) — has the dataset, the feature cache and the real run
+  directories. This is where results come from.
+
 ## Setup
 
 Requires **Python 3.11**. (3.8 caps PyTorch at 2.4; 3.13 has no mmcv / MediaPipe wheels.)
