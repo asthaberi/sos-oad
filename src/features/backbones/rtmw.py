@@ -143,7 +143,6 @@ class RTMWPoseBackbone(SnippetBackbone):
         # path, which is what onnxruntime-gpu's CUDA provider links against.
         import torch  # noqa: F401
         import onnxruntime as ort
-        import rtmlib
         from rtmlib import YOLOX, RTMPose
 
         # Built on CPU (cheap), then their sessions are replaced with deterministic ones.
@@ -156,9 +155,10 @@ class RTMWPoseBackbone(SnippetBackbone):
 
         self._detector = det
         self._estimator = lambda image, boxes: pose(image, bboxes=boxes)
+        from importlib.metadata import version
+
         self._runtime = {
-            "runtime": f"onnxruntime {ort.__version__} via rtmlib {rtmlib.__version__}"
-            if hasattr(rtmlib, "__version__") else f"onnxruntime {ort.__version__} via rtmlib",
+            "runtime": f"onnxruntime {ort.__version__} via rtmlib {version('rtmlib')}",
             "execution_provider": det.session.get_providers()[0],
             "det_model_sha256": _sha256(Path(det.onnx_model)),
             "pose_model_sha256": _sha256(Path(pose.onnx_model)),
@@ -239,6 +239,9 @@ class RTMWPoseBackbone(SnippetBackbone):
             "feature_dim": self.dim,
             "layout": "[T, J, 3] = (x, y, confidence); x, y in source-frame pixels, "
                       "origin top-left; COCO-WholeBody joint order",
+            # Not a calibrated probability: RTMW's SimCC score, which can slightly exceed 1
+            # (up to ~1.1 seen on IPN). Joints can also lie outside the frame (extrapolated).
+            "confidence": "RTMW SimCC keypoint score; uncalibrated, may exceed 1",
             "parts": {name: list(span) for name, span in WHOLEBODY_PARTS.items()},
             "person_selection": "largest detected box, decided per frame",
             "no_detection": "estimate on the whole frame",
