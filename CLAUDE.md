@@ -250,7 +250,7 @@ run log rather than pretending.
 | 0 | Repo + canonical format + config system | Schema validator passes on a synthetic fixture | **DONE** |
 | 1 | Acquire IPN Hand, write adapter | Published figures reproduced (see below) | **DONE** |
 | 2 | Frozen subject-disjoint splits + LOSGO | Unit test: no `subject_id` in >1 split | **DONE** |
-| 3 | Feature extraction, 2 streams, cached | All 200 videos cached, shapes verified | **in progress** — RGB stream (VideoMAEv2-B) extracted and verified, `STAGE 3 GATE: PASS` 2026-10-04; pose stream not started |
+| 3 | Feature extraction, 2 streams, cached | All 200 videos cached, shapes verified | **in progress** — RGB stream (VideoMAEv2-B) extracted and verified, `STAGE 3 GATE: PASS` 2026-10-04; pose stream (RTMW) implemented and tested, extraction pending |
 | 4 | Baselines B0 + B1 + **full** eval harness | Both baselines produce the complete metric set | not started |
 | 5 | M1 model | — | not started |
 | 6 | Online decision layer | — | not started |
@@ -262,7 +262,8 @@ Keep this table current. It is the project's memory across sessions.
 ### Stage 1 verification targets (IPN Hand, published)
 
 200 videos · 50 subjects · 13 gesture classes + non-gesture · 4,218 gesture instances ·
-1,431 non-gesture instances · ~800,000 frames · 640x480 @ 30 fps.
+1,431 non-gesture instances · ~800,000 frames · 640x480 @ 30 fps. (640x480 is the *capture*
+resolution; the released frames are 320x240 — found at Stage 3b, see there.)
 
 Stage 1 must print these side by side with the computed values. Mismatches are investigated, not
 explained away.
@@ -408,15 +409,48 @@ foreach ($f in Get-ChildItem raw\kaggle_dl\frames*.tgz) { tar -xzf $f.FullName -
 `batch_size` is part of the cache's identity (float32 matmul is not batch-size invariant): any
 re-extraction that should match this cache must use 16.
 
-**Next, agreed 2026-10-04:** a bounded sanity probe of the RGB features — a linear classifier fit
-on train subjects, scored on **val only** (Rule 3), not a reported result, Rule 2 applying — then
-the pose stream.
+**RGB sanity probe (2026-10-04, not a reported result).** Linear classifier on single-frame
+features, train subjects → val subjects: balanced accuracy 0.281 (chance 0.071; shuffled-label
+control 0.070), mAP 0.227 (chance 0.071). Errors fall between similar gestures (1 vs 2 fingers,
+click vs double click, throw direction); train-subject balanced accuracy 0.80 against 0.28 on
+unseen subjects. Run: `runs/20261004-171005-stage3-rgb-sanity-probe`.
+
+### Stage 3b — pose stream (implemented 2026-10-04)
+
+`features=rtmw` → `poses/<video_id>.npy`, `[T, 133, 3]` = (x, y, confidence), COCO-WholeBody
+joint order, x/y in **source-frame pixels**. Code: `src/features/backbones/rtmw.py`.
+
+- **RTMW via rtmlib + onnxruntime, not MMPose.** MMPose does not install here: no `mmcv` builds
+  for torch 2.5/2.6, Windows builds stop at Python 3.11, and `mmpose`'s `chumpy` fails to build.
+  rtmlib runs the same RTMPose-family ONNX models with no compiled extensions. Model files are
+  pinned by URL in `configs/features/rtmw.yaml`; their SHA-256 goes into `meta.yaml`.
+- **onnxruntime-gpu must be 1.24.4.** 1.30 is built for CUDA 13; against torch's CUDA 12 DLLs it
+  logs an error and **silently runs on CPU** (4 fps instead of ~25). The backbone now raises if
+  a requested GPU is not actually used. 1.24.4's CUDA provider links only DLLs torch ships.
+- **YOLOX-m detector, not YOLOX-tiny.** Tiny is 1.8× faster, but on 800 sampled train frames
+  across all four camera groups the selected subject's wrist moved >10 px in 16–29% of frames
+  — a lot at 320×240. RTMW-x at 256×192, not 384×288: a person crop is already about that size.
+- **Per frame, stateless:** largest detected box; no detection → estimate on the whole frame
+  (counted per run, never zeros that look like a pose at the origin); no smoothing. Sessions use
+  deterministic compute and heuristic cuDNN algorithm choice; bit-identity is tested on fakes
+  (`tests/test_causality.py`) and on the real models with real frames (`tests/test_pose.py`).
+- **No normalisation in the cache.** Per-person normalisation is a per-frame function applied
+  at training time, where it can be ablated.
+- **IPN frames are 320×240, not 640×480.** All 200 videos checked. 640×480 is the paper's capture
+  resolution; `configs/dataset/ipn_hand.yaml` had recorded it as `frame_size`, and the Stage 1
+  gate never measured it. Nothing computed with the wrong value (the RGB stream reads the JPEGs),
+  but pose pixels are interpreted with it, so it is corrected and `meta.yaml` regenerated.
+- **Re-running the adapter used to erase the feature-cache checksums** — it replaced `meta.yaml`
+  wholesale. It now rewrites only the keys it owns.
+- **Concurrent shards are safe.** `record_cache` merges under a lock file (`meta.yaml.lock`), so
+  several `--shard i/n` processes can share the GPU without dropping each other's digests.
 
 ### Stage 3 — backbone preference order
 
 RGB/motion: VideoMAEv2-B → X3D-M → TSM ResNet-50 (frozen, pretrained).
 Pose: RTMPose via MMPose (133 whole-body keypoints, includes hands) → MediaPipe Hands (CPU
-fallback). Normalise per person: translate to a root joint, scale by torso or hand length.
+fallback). **Resolved 2026-10-04: RTMW via rtmlib** (same model family, MMPose uninstallable —
+see Stage 3b). Normalise per person: translate to a root joint, scale by torso or hand length.
 Both streams causal-safe — no bidirectional temporal operations anywhere.
 
 ### Stage 4 — why B1 exists

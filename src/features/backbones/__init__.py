@@ -20,9 +20,16 @@ def load_videomaev2(**kwargs: Any) -> "SnippetBackbone":
     return VideoMAEv2Backbone(**kwargs)
 
 
+def load_rtmw(**kwargs: Any) -> "SnippetBackbone":
+    from src.features.backbones.rtmw import RTMWPoseBackbone
+
+    return RTMWPoseBackbone(**kwargs)
+
+
 #: name -> factory. Factories, not classes, so the import stays deferred.
 LAZY_BACKBONES = {
     "videomaev2-base": load_videomaev2,
+    "rtmw-wholebody": load_rtmw,
 }
 
-__all__ = ["LAZY_BACKBONES", "load_videomaev2"]
+__all__ = ["LAZY_BACKBONES", "load_videomaev2", "load_rtmw"]

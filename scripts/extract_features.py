@@ -155,6 +155,10 @@ def main() -> int:
         source = JpegDirectorySource(frames_root / video_id, num_frames)
         clock = time.time()
         features = extractor.extract(source)
+        if stream == "poses":
+            # A pose backbone emits J*3 numbers per frame; the canonical pose array is
+            # [T, J, 3]. Reshaped here, at the one place that knows which stream it writes.
+            features = features.reshape(features.shape[0], -1, 3)
 
         if features.shape[0] != num_frames:
             log.error(
@@ -178,11 +182,11 @@ def main() -> int:
             num_frames / max(elapsed, 1e-6),
         )
 
-    # Merge this shard's digests into whatever meta.yaml already records, so shards run in
-    # separate sessions accumulate instead of overwriting each other.
-    existing = (C.read_meta(root).get(cache.CACHE_KEY) or {}).get(stream) or {}
-    merged = {**(existing.get("sha256") or {}), **digests}
-    cache.record_cache(root, stream=stream, digests=merged, settings=extractor.describe())
+    # record_cache merges this shard's digests into whatever meta.yaml already records,
+    # under a lock, so shards -- sequential or running at the same time -- accumulate
+    # instead of overwriting each other.
+    meta = cache.record_cache(root, stream=stream, digests=digests, settings=extractor.describe())
+    merged = meta[cache.CACHE_KEY][stream]["sha256"]
 
     wall = time.time() - started
     log.info(
@@ -205,6 +209,9 @@ def main() -> int:
             "wall_seconds": wall,
             "frames_per_second": total_frames / max(wall, 1e-6),
             "cached_total": len(merged),
+            # Shard-specific counts (e.g. frames where the pose detector found no one),
+            # for backbones that keep them.
+            **({"backbone_stats": backbone.run_stats()} if hasattr(backbone, "run_stats") else {}),
         },
     )
     log.info("run directory: %s", run.path)

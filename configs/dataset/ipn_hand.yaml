@@ -15,7 +15,11 @@
 name: ipn_hand
 adapter: ipn_hand
 fps: 30.0
-frame_size: [640, 480]
+# [width, height] of the frames as distributed, which is what every stream is computed
+# from. The paper's 640x480 is the *capture* resolution; the released frame archives are
+# 320x240 -- every one of the 200 videos, checked 2026-10-04 (first, middle and last frame
+# of each). Pose coordinates are in these pixels.
+frame_size: [320, 240]
 
 # 13 gestures. `none` (the non-gesture class) is prepended at index 0 automatically and
 # is NOT listed here. It is the largest class in the dataset and the detection problem

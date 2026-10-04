@@ -188,7 +188,17 @@ class DatasetAdapter(abc.ABC):
 
         C.write_classes(root, self.classes)
         C.write_annotations(root, pd.DataFrame(self._rows))
-        C.write_meta(root, self._meta())
+        # Later stages record into meta.yaml too -- Stage 3's feature-cache checksums above
+        # all. Re-running an adapter rewrites the keys it owns and keeps the rest; replacing
+        # the file wholesale would leave hours of extracted features unverifiable.
+        meta = self._meta()
+        if (root / C.META_FILE).is_file():
+            recorded = C.read_meta(root)
+            # An adapter value of None means "could not tell" (e.g. feature_dim before any
+            # features exist); it must not erase a value a later stage measured.
+            meta = {**recorded, **{k: v for k, v in meta.items()
+                                   if v is not None or recorded.get(k) is None}}
+        C.write_meta(root, meta)
 
         if not validate:
             return C.ValidationReport(root=root)

@@ -441,3 +441,49 @@ def test_backbone_shape_disagreement_is_caught(source):
     extractor = SnippetExtractor(WrongDim(dim=8), snippet_length=16, stride=6)
     with pytest.raises(ValueError, match="expected"):
         extractor.extract(source)
+
+
+# ----------------------------------------------------------------------------------
+# The pose stream (Stage 3b): per-frame RTMW behind the same extractor
+# ----------------------------------------------------------------------------------
+#
+# The real backbone needs onnxruntime and weights; these fakes stand in for the detector
+# and the pose model so the scheduling is tested anywhere. Their outputs depend on the
+# frame's pixels, so reading the wrong frame changes the answer.
+
+
+def fake_detector(bgr: np.ndarray) -> np.ndarray:
+    """Two boxes whose geometry depends on the frame; none on every fifth frame."""
+    tag = int(bgr[0, 0, 2])  # the RGB fingerprint pixel, now in the BGR red channel
+    if tag % 5 == 4:
+        return np.zeros((0, 4))
+    w, h = bgr.shape[1], bgr.shape[0]
+    return np.array([[0, 0, w // 2, h // 2], [1, 1, w - 1 - tag % 3, h - 1]], dtype=float)
+
+
+def fake_estimator(bgr: np.ndarray, boxes: np.ndarray):
+    """Five joints computed from the pixels inside the box."""
+    x1, y1, x2, y2 = boxes[0].astype(int)
+    crop = bgr[y1:y2, x1:x2].astype(np.float64)
+    joints = np.stack([crop.mean(axis=(0, 1))[:2] + j for j in range(5)])
+    scores = np.full(5, crop.std() / 255.0)
+    return joints[None], scores[None]
+
+
+def pose_extractor(length: int = 1, stride: int = 1) -> SnippetExtractor:
+    from src.features.backbones.rtmw import RTMWPoseBackbone
+
+    backbone = RTMWPoseBackbone(detector=fake_detector, estimator=fake_estimator)
+    return SnippetExtractor(backbone, snippet_length=length, stride=stride, batch_size=1)
+
+
+@pytest.mark.parametrize("prefix", [1, 2, 4, 5, 6, 30, 96])
+def test_pose_stream_truncated_is_bit_identical(source, prefix):
+    assert truncation_mismatch(pose_extractor(), source, prefix) is None
+
+
+def test_pose_backbone_estimates_only_the_current_frame(source):
+    """Given a longer clip, it must use the clip's last frame and nothing earlier."""
+    per_frame = pose_extractor().extract(source)
+    with_history = pose_extractor(length=4, stride=1).extract(source)
+    assert np.array_equal(per_frame, with_history)

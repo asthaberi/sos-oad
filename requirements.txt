@@ -45,5 +45,16 @@ torchvision==0.20.1
 # supports numpy 1.26.
 scipy==1.16.3
 
+# --- Stage 3b: pose stream (RTMW whole-body via rtmlib) ---
+# MMPose is not used: no mmcv builds exist for torch 2.5/2.6 or Python 3.12 on Windows, and
+# mmpose's chumpy dependency does not build. rtmlib runs the same RTMPose-family ONNX models
+# through onnxruntime. rtmlib declares both OpenCV packages; both are pinned to one release
+# so they agree on the shared cv2 module. This is the CPU onnxruntime; the GPU box swaps it
+# for onnxruntime-gpu (requirements-cuda.txt).
+rtmlib==0.0.16
+onnxruntime==1.24.4
+opencv-python==4.11.0.86
+opencv-contrib-python==4.11.0.86
+
 # --- test / lint ---
 pytest==8.3.4

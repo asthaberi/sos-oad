@@ -225,3 +225,46 @@ def test_bad_shard_spec_is_refused(bad):
 
     with pytest.raises(SystemExit):
         shard_of([f"v{i}" for i in range(10)], bad)
+
+
+# ----------------------------------------------------------------------------------
+# Concurrent shards and re-run adapters must not lose recorded checksums
+# ----------------------------------------------------------------------------------
+
+
+def test_concurrent_shards_all_keep_their_digests(cached):
+    """Shards finishing at the same moment each merge into meta.yaml; none may be lost."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    root, digests = cached
+    shards = {f"shard{i}": f"{i:064x}" for i in range(16)}
+
+    def record(item):
+        video_id, digest = item
+        cache.record_cache(root, stream="poses", digests={video_id: digest}, settings={})
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(record, shards.items()))
+
+    recorded = C.read_meta(root)[cache.CACHE_KEY]["poses"]["sha256"]
+    assert recorded == shards
+    assert not (root / (C.META_FILE + ".lock")).exists()
+
+
+def test_a_held_lock_times_out_loudly_instead_of_being_broken(cached):
+    root, _ = cached
+    (root / (C.META_FILE + ".lock")).write_text("12345\n")
+    with pytest.raises(TimeoutError, match="delete the file"):
+        with cache.meta_lock(root, timeout=0.2):
+            pass
+
+
+def test_rerunning_the_adapter_keeps_the_recorded_cache(cached):
+    """Re-running the dataset conversion must not erase Stage 3's checksums."""
+    root, digests = cached
+    assert make_synthetic_dataset(root, num_videos=4, num_subjects=4, seed=3).ok
+    recorded = C.read_meta(root)[cache.CACHE_KEY]["features"]["sha256"]
+    assert recorded == dict(sorted(digests.items()))
+    # Keys the adapter owns are still the adapter's: the synthetic adapter rewrites its
+    # own 16-dim features, and meta must describe what is on disk now.
+    assert C.read_meta(root)["feature_dim"] == 16

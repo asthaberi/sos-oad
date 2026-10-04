@@ -1,0 +1,29 @@
+# Stage 3 pose stream: frozen YOLOX-m person detector + RTMW whole-body pose.
+#
+# Writes poses/<video_id>.npy, [T, 133, 3] = (x, y, confidence) per COCO-WholeBody joint,
+# x/y in source-frame pixels. See src/features/backbones/rtmw.py for why this runs on
+# rtmlib + onnxruntime rather than MMPose, and for the selection / fallback rules.
+#
+# Run with  features=rtmw device=cuda  -- and onnxruntime-gpu built for the same CUDA major
+# version as torch (requirements-cuda.txt); the backbone refuses a silent CPU fallback.
+
+name: rtmw
+stream: poses
+backbone: rtmw-wholebody
+backbone_options:
+  # Pinned by URL; the SHA-256 of each downloaded file is recorded in meta.yaml. Both are
+  # rtmlib's "balanced" whole-body pairing.
+  det_model: https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/onnx_sdk/yolox_m_8xb8-300e_humanart-c2c7a14a.zip
+  det_input_size: [640, 640]
+  # RTMW-x at 256x192. The larger 384x288 variant was not chosen: IPN frames are 320x240,
+  # so a person crop is already near 256x192 and upsampling further adds no detail.
+  pose_model: https://download.openmmlab.com/mmpose/v1/projects/rtmw/onnx_sdk/rtmw-dw-x-l_simcc-cocktail14_270e-256x192_20231122.zip
+  pose_input_size: [192, 256]
+
+# Per-frame: every frame is its own "snippet", so there is no hold-last and the temporal
+# resolution is the full 30 fps.
+snippet_length: 1
+snippet_stride: 1
+
+# Frames are estimated one at a time whatever this says; 1 avoids padding work.
+batch_size: 1

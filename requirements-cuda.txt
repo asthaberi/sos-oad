@@ -26,3 +26,14 @@
 
 torch==2.6.0
 torchvision==0.21.0
+
+# Pose stream on the GPU. onnxruntime and onnxruntime-gpu install the same module, so
+# remove the CPU one first:
+#
+#   pip uninstall -y onnxruntime
+#   pip install -r requirements-cuda.txt
+#
+# 1.24.4 is deliberate: its CUDA provider links cuBLAS 12 / cuDNN 9, the DLLs torch's cu124
+# build ships. onnxruntime-gpu 1.30 is built for CUDA 13; against these DLLs it logs an
+# error and silently runs on CPU at ~1/5 the speed (the backbone now refuses that).
+onnxruntime-gpu==1.24.4

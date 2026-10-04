@@ -20,9 +20,12 @@ with a different batch size produces numerically different bytes. See
 
 from __future__ import annotations
 
+import contextlib
 import datetime as _dt
+import os
+import time
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any, Callable, Iterable, Iterator
 
 import numpy as np
 
@@ -31,6 +34,45 @@ from src.utils.run import git_provenance
 
 #: meta.yaml key holding the per-video digests and the settings that produced them.
 CACHE_KEY = "feature_cache"
+
+#: How long a shard waits for another shard's meta.yaml update before giving up.
+LOCK_TIMEOUT_S = 300.0
+
+
+@contextlib.contextmanager
+def meta_lock(root: Path | str, timeout: float = LOCK_TIMEOUT_S) -> Iterator[None]:
+    """Hold an exclusive lock on ``meta.yaml`` for a read-modify-write.
+
+    Shards running *concurrently* (several processes sharing one GPU) each merge their
+    digests into meta.yaml when they finish. Without a lock, two finishing together both
+    read the old file and the second write drops the first one's digests -- the cache is
+    then unverifiable for those videos, and nothing at the time says so.
+
+    The lock is a file created with O_EXCL, which is atomic on every filesystem this runs
+    on. It is held for milliseconds; one that outlives ``timeout`` is reported, never
+    broken silently, because breaking a live lock is exactly the race it exists to stop.
+    """
+    path = Path(root) / (C.META_FILE + ".lock")
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            break
+        except FileExistsError:
+            if time.monotonic() > deadline:
+                raise TimeoutError(
+                    f"{path} has been held for over {timeout:.0f}s. If no extraction is "
+                    "running, a previous one died while holding it: delete the file and "
+                    "re-run, then check `--verify`."
+                ) from None
+            time.sleep(0.05)
+    try:
+        os.write(fd, f"{os.getpid()}\n".encode())
+        os.close(fd)
+        yield
+    finally:
+        with contextlib.suppress(FileNotFoundError):
+            os.remove(path)
 
 
 def write_stream(
@@ -71,25 +113,30 @@ def record_cache(
     canonical format's validator requires it there.
     """
     root = Path(root)
-    meta = C.read_meta(root)
-    cache = dict(meta.get(CACHE_KEY) or {})
-    cache[stream] = {
-        **settings,
-        "num_videos": len(digests),
-        "extracted_utc": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"),
-        "git": git_provenance(),
-        "sha256": dict(sorted(digests.items())),
-    }
-    meta[CACHE_KEY] = cache
+    git = git_provenance()  # outside the lock: it shells out to git
+    with meta_lock(root):
+        meta = C.read_meta(root)
+        cache = dict(meta.get(CACHE_KEY) or {})
+        # Merge with what earlier shards of this stream recorded; this shard's digests win
+        # for its own videos.
+        merged = {**((cache.get(stream) or {}).get("sha256") or {}), **digests}
+        cache[stream] = {
+            **settings,
+            "num_videos": len(merged),
+            "extracted_utc": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"),
+            "git": git,
+            "sha256": dict(sorted(merged.items())),
+        }
+        meta[CACHE_KEY] = cache
 
-    if stream == "features" and "feature_dim" in settings:
-        meta["feature_dim"] = settings["feature_dim"]
-    if stream == "features" and "backbone" in settings:
-        meta["feature_backbone"] = settings["backbone"]
-    if stream == "poses" and "backbone" in settings:
-        meta["pose_backbone"] = settings["backbone"]
+        if stream == "features" and "feature_dim" in settings:
+            meta["feature_dim"] = settings["feature_dim"]
+        if stream == "features" and "backbone" in settings:
+            meta["feature_backbone"] = settings["backbone"]
+        if stream == "poses" and "backbone" in settings:
+            meta["pose_backbone"] = settings["backbone"]
 
-    C.write_meta(root, meta)
+        C.write_meta(root, meta)
     return meta
 
 
