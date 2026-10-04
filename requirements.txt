@@ -29,6 +29,21 @@ Pillow==11.0.0
 # without CUDA, it is simply slow. The GPU pins live in requirements-cuda.txt.
 transformers==4.46.3
 safetensors==0.4.5
+# The checkpoint's remote modeling code (trust_remote_code) imports these two; transformers
+# refuses to load it without them. Found on the first real load, 2026-10-04 -- the test
+# suite never executes the checkpoint, so it could not catch the gap. timm supplies only
+# drop_path / to_2tuple / trunc_normal_, all inert at eval with loaded weights, so its
+# version cannot change the features.
+timm==1.0.30
+easydict==1.13
+# timm requires torchvision. Pinned to the release paired with the CPU torch above;
+# requirements-cuda.txt replaces both with the CUDA pair.
+torchvision==0.20.1
+# Nothing here imports scipy, but transformers does whenever it is installed, and anything
+# that pulls it in unpinned (scikit-learn does) gets a release built for numpy 2.x, which
+# breaks transformers at import against the numpy<2 pin above. 1.16.3 is the newest that
+# supports numpy 1.26.
+scipy==1.16.3
 
 # --- test / lint ---
 pytest==8.3.4

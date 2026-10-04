@@ -154,14 +154,30 @@ Where Stage 3 extraction and all later training runs happen.
 | OS | **Windows**, PowerShell **5.1** |
 | Login | user `nspunn` (a lab account, not the author's own) |
 | GPU | **NVIDIA RTX A4000, 16 GB**, driver 571.96, CUDA 12.8 |
-| Python | **3.12.10**, conda env `astha_312` |
+| Python | **3.12.10**, the author's **venv** (not conda) at `D:\ASTHA_BERI\astha_312` — interpreter `D:\ASTHA_BERI\astha_312\Scripts\python.exe` |
 | torch | **2.6.0+cu124** (a cu124 build runs on a 12.8 driver) |
 | Repo | `D:\ASTHA_BERI\sos-oad` |
 | Disk | D: has ~3.7 TB free — not a constraint |
 
 Rules that follow from this, and that cost real time when forgotten:
 
-- **All work stays inside `D:\ASTHA_BERI\`.** Imposed by the lab; the machine is shared.
+- **All work stays inside `D:\ASTHA_BERI\`.** Imposed by the lab and by the author; the machine
+  and the `nspunn` account are shared, so `C:\Users\nspunn\...` belongs to everyone. Tools
+  write there by default and must be redirected, per command, without changing anyone's
+  global settings:
+  - `HF_HOME=D:\ASTHA_BERI\hf_cache` — otherwise the checkpoint lands in the shared
+    `C:\Users\nspunn\.cache\huggingface`, and importing transformers there runs a cache
+    migration that writes into it.
+  - `PIP_CACHE_DIR=D:\ASTHA_BERI\pip_cache` (or `--no-cache-dir`) for every pip call.
+  - Temporary files and ad-hoc check scripts go in `D:\ASTHA_BERI\tmp`, never the system temp.
+- **Use only the author's environment, `astha_312`.** Call its interpreter by full path. Plain
+  `python` on `PATH` is the Windows Store Python, which has no torch; other users' envs
+  (`D:\AMAN_RAJ_VERMA\envs\...`) are not to be used.
+- **Commit as the author, set per command.** The global git identity on `nspunn` belongs to
+  another lab member. Every commit uses
+  `git -c user.name=asthaberi -c user.email=asthaberi.pro@gmail.com commit ...`; the global
+  config is never edited. Do not push from this machine with whatever credentials are stored on
+  the shared account — pushing is the author's to do as `asthaberi`.
 - **The GPU is shared and often busy.** Another user's job (`...VERMA\envs\wcfall`) was holding
   1.5 GB and 63% utilisation when first checked. Size batches so a concurrent job does not get
   OOM-killed, and measure with `--limit 2` before committing to a long run.
@@ -170,6 +186,15 @@ Rules that follow from this, and that cost real time when forgotten:
 - **Python is 3.12, not the 3.11 the project targets.** The full suite passes there
   (202 passed, 9 skipped on 2026-10-04), so this is recorded rather than a problem. The pose
   stream at Stage 3b is the open question: MediaPipe wheels for 3.12 need checking before use.
+- **The suite being green did not mean the env could load the checkpoint.** Two gaps surfaced
+  only on the first real load: the remote modeling code needs `timm` and `easydict`, and an
+  unpinned scipy 1.18 (pulled in by scikit-learn) needed numpy 2 and broke
+  `import transformers.modeling_utils`. Both are now pinned in `requirements.txt`.
+  `contourpy` (matplotlib's dependency) still wants numpy 2 — harmless until Stage 7 draws
+  figures with matplotlib, and to be resolved then.
+- **A run records its git state when it finishes, not when it starts** (`create_run` is called
+  after extraction). Editing a tracked file during a multi-hour run marks that run `dirty`.
+  Leave the tree alone until it exits.
 - **No automated SSH from the laptop.** `nspunn` is an administrator, so Windows OpenSSH reads
   keys only from `C:\ProgramData\ssh\administrators_authorized_keys`, which needs an elevated
   shell on the server. RDP (3389) and WinRM (5985) are closed, SMB admin shares deny access, and
@@ -218,7 +243,7 @@ run log rather than pretending.
 | 0 | Repo + canonical format + config system | Schema validator passes on a synthetic fixture | **DONE** |
 | 1 | Acquire IPN Hand, write adapter | Published figures reproduced (see below) | **DONE** |
 | 2 | Frozen subject-disjoint splits + LOSGO | Unit test: no `subject_id` in >1 split | **DONE** |
-| 3 | Feature extraction, 2 streams, cached | All 200 videos cached, shapes verified | **in progress** — code verified on the GPU server; extraction not yet run; pose stream not started |
+| 3 | Feature extraction, 2 streams, cached | All 200 videos cached, shapes verified | **in progress** — RGB stream (VideoMAEv2-B) extracted and verified, `STAGE 3 GATE: PASS` 2026-10-04; pose stream not started |
 | 4 | Baselines B0 + B1 + **full** eval harness | Both baselines produce the complete metric set | not started |
 | 5 | M1 model | — | not started |
 | 6 | Online decision layer | — | not started |
@@ -327,63 +352,58 @@ blocked on the RGB backbone / hardware decision.
   the middle ~75% of a 640x480 frame, and `throw_left` / `throw_right` / the zooms are lateral
   hand motions that reach the frame edges. `crop: center` is config-exposed for the ablation.
 
-### Stage 3 — where it stands on the GPU server (2026-10-04)
+### Stage 3 — RGB stream extracted on the GPU server (2026-10-04)
 
-**Done:** repo cloned to `D:\ASTHA_BERI\sos-oad`, dependencies installed, full suite green
-(202 passed, 9 skipped — the skips are real-data tests correctly waiting for the dataset).
-`torch 2.6.0+cu124 | cuda: True | NVIDIA RTX A4000` confirmed.
+**`STAGE 3 GATE: PASS`** for the RGB stream: 200 videos cached, 0 missing, 0 checksum problems.
+An independent check found every file `[T, 768]` float32 with T equal to the annotated length
+(800,491 frames in total), all finite, none constant. Run directories:
+`runs/20261004-120338-stage3-videomaev2` (2-video probe) and
+`runs/20261004-162610-stage3-videomaev2` (the other 198); both record commit `2842199`, clean.
 
-**Not done:** the dataset is not on the server yet, and no features have been extracted anywhere.
+What the rebuild on this machine confirmed:
 
-**Resume from here, in order:**
+- **Raw data:** 200 frame directories, 800,491 JPEGs, and the same 14 stray `desktop.ini`.
+- **Stage 1 gate reproduced exactly** from the Kaggle copy — 200 / 50 / 4,218 / 1,431 / 800,491,
+  and Table II row by row.
+- **`--apply-frozen` accepted the committed split** (30 / 7 / 13 subjects); the split file is
+  byte-identical.
+- **The `_pool()` hazard did not materialise.** The checkpoint's config has `num_classes: 0`
+  (head is `Identity`) and `use_mean_pooling: true`, so `model(pixel_values)` returns
+  `fc_norm(mean over tokens)` as a bare `[B, 768]` tensor and `_pool()` passes it through.
+  These are features, not logits. The output dim probes to **768**.
+- **`batch_size` stays 16.** The probe peaked at ~5.8 GB of our own on the 16 GB card, leaving
+  ~9 GB for the co-tenant.
+- **Throughput: 51 fps end to end**, 792,982 frames in 261.6 min. Mean GPU utilisation in the
+  probe was ~46%, so the GPU is not the bottleneck — decode/preprocess is. Not optimised: any
+  change to the extraction path would have to re-pass the differential and causality tests, and
+  4.4 h on a machine with no session cap did not justify it.
+
+**How it was run** (reproduction record; PowerShell 5.1, so no `&&`):
 
 ```powershell
 cd D:\ASTHA_BERI\sos-oad
+$py = "D:\ASTHA_BERI\astha_312\Scripts\python.exe"
+$env:HF_HOME = "D:\ASTHA_BERI\hf_cache"; $env:PIP_CACHE_DIR = "D:\ASTHA_BERI\pip_cache"
 
-# 1. data (needs a Kaggle token; use the env var, do not write it to disk on a shared machine)
-pip install kaggle
-$env:KAGGLE_API_TOKEN = "KGAT_..."
-kaggle datasets download asthaberi/ipn-hand-frames -p raw\kaggle_dl --unzip
-
-# 2. arrange it the way the adapter expects, then rebuild the canonical dataset
-mkdir -Force raw\IPN_Hand\annotations | Out-Null
+# 1. data: Kaggle dataset asthaberi/ipn-hand-frames -> raw\kaggle_dl (token via env var only)
+# 2. arrange, rebuild, apply the frozen split
+New-Item -ItemType Directory -Force raw\IPN_Hand\annotations | Out-Null
 Move-Item raw\kaggle_dl\*.txt,raw\kaggle_dl\*.csv,raw\kaggle_dl\*.xlsx raw\IPN_Hand\annotations\
 foreach ($f in Get-ChildItem raw\kaggle_dl\frames*.tgz) { tar -xzf $f.FullName -C raw\IPN_Hand }
-python scripts/prepare_ipn_hand.py --raw raw\IPN_Hand --set dataset=ipn_hand
-python scripts/make_splits.py --set dataset=ipn_hand split=ipn_official --apply-frozen
-
-# 3. timing probe BEFORE the long run -- the GPU is shared
-python scripts/extract_features.py --set dataset=ipn_hand split=ipn_official `
-    features=videomaev2 device=cuda --limit 2
-
-# 4. the full run, then the gate
-python scripts/extract_features.py --set dataset=ipn_hand split=ipn_official `
-    features=videomaev2 device=cuda
-python scripts/extract_features.py --verify --set dataset=ipn_hand features=videomaev2
+& $py scripts/prepare_ipn_hand.py --raw raw\IPN_Hand --set dataset=ipn_hand
+& $py scripts/make_splits.py --set dataset=ipn_hand split=ipn_official --apply-frozen
+# 3. probe, 4. full run (resumes automatically; already-cached videos are skipped), gate
+& $py scripts/extract_features.py --set dataset=ipn_hand split=ipn_official features=videomaev2 device=cuda --limit 2
+& $py scripts/extract_features.py --set dataset=ipn_hand split=ipn_official features=videomaev2 device=cuda
+& $py scripts/extract_features.py --verify --set dataset=ipn_hand features=videomaev2
 ```
 
-**Checks that matter at each step, not to be waved through:**
+`batch_size` is part of the cache's identity (float32 matmul is not batch-size invariant): any
+re-extraction that should match this cache must use 16.
 
-- Step 2's Stage 1 gate must print **200 / 50 / 4,218 / 1,431 / 800,491** all matching. The dataset
-  is being rebuilt on a different machine from a different source; this is a real reproducibility
-  check. Investigate any mismatch, do not explain it away.
-- `--apply-frozen` must accept the committed split, which proves the subject digest still matches.
-  If it refuses, the dataset differs from the one the split was frozen against — stop and find out
-  why before overriding anything.
-- The probe at step 3 decides `batch_size`. **Lower it in `configs/features/videomaev2.yaml` if the
-  card is busy** — 16 at float32 on a 16 GB card shared with another job is optimistic. Whatever is
-  chosen must then stay fixed for the whole extraction: float32 matmul is not batch-size invariant,
-  so changing it mid-run makes the cache internally inconsistent and the checksums meaningless.
-- Step 4's `--verify` printing `STAGE 3 GATE: PASS` over all 200 videos is the gate. Nothing before
-  that counts as Stage 3 being done.
-- Extraction resumes automatically — already-cached videos are skipped, so a killed run is restarted
-  by re-issuing the same command. `--shard i/n` exists for splitting across sessions but is not
-  needed here, since this machine has no session cap.
-
-**Known hazard:** `_pool()` in `src/features/backbones/videomae.py` reduces whatever the checkpoint
-returns to `[B, D]`. It handles the shapes that could be anticipated without running it; the
-checkpoint has never actually been executed. If it raises *"could not reduce model output of
-shape ..."*, that shape is the information needed to fix it.
+**Next, agreed 2026-10-04:** a bounded sanity probe of the RGB features — a linear classifier fit
+on train subjects, scored on **val only** (Rule 3), not a reported result, Rule 2 applying — then
+the pose stream.
 
 ### Stage 3 — backbone preference order
 
