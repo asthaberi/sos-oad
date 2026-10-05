@@ -567,11 +567,24 @@ runs/               gitignored. Logs, checkpoints, metrics.
 
 ## 7. Notes for the assistant
 
-- **Keep `D:\ASTHA_BERI\log.md` current.** It is the author's thesis-writing log on the GPU
-  server: after every meaningful step add what was done, why, the result with its run
-  directory, problems and their fixes, and which thesis chapter it feeds. Written for the
-  author, not for the assistant; no AI attribution (Rule 7). It lives outside the public
-  repo deliberately, so similarity checkers cannot match the thesis against it.
+- **Keep the thesis log current.** It lives on the **author's laptop** at
+  `C:\Users\astha\Projects\sos-oad-private\log.md` — moved off the GPU server on
+  2026-10-05 at the author's direction, together with the reports, the study material and the
+  Stage 3 check scripts (now `sos-oad-private\evidence\`). After every meaningful step add
+  what was done, why, the result with its run directory, problems and their fixes, and which
+  thesis chapter it feeds. Written for the author, not for the assistant; no AI attribution
+  (Rule 7). It lives outside the public repo deliberately, so similarity checkers cannot match
+  the thesis against it.
+  - **The GPU server holds only what is needed to run:** the repo checkout with its data,
+    features and run directories, the `astha_312` environment, `cache\`, the session setup
+    scripts and `claude_astha.ps1`, and an empty `tmp\`. Reports, logs and write-ups are not
+    created there.
+  - **A session running on the server cannot reach the laptop**, so it cannot update the log.
+    Drive work from a laptop session over SSH where possible (key auth works from the laptop),
+    so the log can be written as results come in. A server-side session records its results
+    in run directories and leaves the log entry for the laptop.
+  - **Finished reports are generated into the repo's `reports/`** (ignored by git) and then
+    kept in `sos-oad-private\reports\`. They are never committed.
 - Stage gates are real. Show output, stop, wait.
 - When a published number does not reproduce, say so plainly with the numbers. Do not round toward
   the paper.

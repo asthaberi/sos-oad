@@ -38,7 +38,7 @@ only the third largest by frame count — see the Stage 1 notes in `CLAUDE.md`.)
 Open this first if the folder looks confusing. Two rules explain almost all of it:
 
 1. **Code is committed; data is not.** Anything under `data/`, `raw/`, `runs/` or
-   `reports/samples/` is either downloaded or regenerated, so it is deliberately kept out of git.
+   `reports/` is either downloaded or generated, so it is deliberately kept out of git.
    A fresh clone is ~2 MB.
 2. **Nothing is lost by deleting a regenerable folder** — the command that rebuilds it is in the
    Reproduction section below.
@@ -52,7 +52,6 @@ Open this first if the folder looks confusing. Two rules explain almost all of i
 | `configs/` | Settings, as YAML. Nothing important is hardcoded outside here |
 | `tests/` | Automatic checks. `pytest` runs them all |
 | `notebooks/` | The Kaggle extraction notebook |
-| `reports/` | Progress report, panel report, presentation |
 | `CLAUDE.md` | The project contract: rules, stage plan, decisions and why |
 | `README.md` | This file — setup and reproduction commands |
 
@@ -64,7 +63,7 @@ Open this first if the folder looks confusing. Two rules explain almost all of i
 | `data/*/splits/*.json` | **The frozen split — this one IS committed** | 10 KB | never regenerate; apply with `--apply-frozen` |
 | `raw/IPN_Hand/` | Extracted frames and annotations | ~20 GB | re-extract from the archives |
 | `runs/` | One folder per execution: config, provenance, metrics | small | produced by each run |
-| `reports/samples/` | Rendered sample clips | ~20 MB | `scripts/make_sample_clip.py` |
+| `reports/` | Generated reports, slides and sample clips | small | `scripts/render_report.py`, `make_sample_clip.py` |
 | `.venv/` | The Python environment | ~5 GB | `pip install -r requirements.txt` |
 | `IPN hand Dataset/` | The original download, 16 zip archives | ~28 GB | re-download from the dataset authors |
 
