@@ -202,13 +202,14 @@ Rules that follow from this, and that cost real time when forgotten:
 - **A run records its git state when it finishes, not when it starts** (`create_run` is called
   after extraction). Editing a tracked file during a multi-hour run marks that run `dirty`.
   Leave the tree alone until it exits.
-- **No automated SSH from the laptop.** `nspunn` is an administrator, so Windows OpenSSH reads
-  keys only from `C:\ProgramData\ssh\administrators_authorized_keys`, which needs an elevated
-  shell on the server. RDP (3389) and WinRM (5985) are closed, SMB admin shares deny access, and
-  Taildrop is blocked because laptop and server sit on different tailnets. **Access is therefore
-  VS Code Remote-SSH with a typed password**, which means a session on the laptop cannot drive the
-  server — it can only hand over commands. To fix this permanently, someone with admin on
-  `nsp-office` adds the laptop's public key to that file; it is worth asking.
+- **Key-based SSH from the laptop works** (confirmed 2026-10-05 with `ssh -o BatchMode=yes`,
+  no password). `nspunn` is an administrator, so Windows OpenSSH reads keys only from
+  `C:\ProgramData\ssh\administrators_authorized_keys`; the laptop's key is there. A laptop
+  session can therefore drive the server directly. The remote shell is `cmd`, so commands start
+  `cd /d D:\ASTHA_BERI\sos-oad && ...`; anything with pipes or nested quotes goes in a script
+  copied to `D:\ASTHA_BERI\tmp\` and run with `powershell -ExecutionPolicy Bypass -File`, then
+  deleted. RDP (3389) and WinRM (5985) stay closed and Taildrop is blocked (different
+  tailnets), so SSH is the only automated route.
 
 ### 4b. The laptop (facts established 2026-09-15)
 
