@@ -38,6 +38,11 @@
 # reads. Regenerate it with: python scripts/make_fixture.py --force
 tests/fixtures/synthetic/
 
+# The author's private study material. The repository is public, and prose the author
+# will draw on when writing the thesis must not be somewhere a similarity checker can
+# match the thesis against it -- the same reason log.md lives outside the repo.
+/reports/private/
+
 # Rendered sample clips. Megabytes of GIF, regenerable with
 # scripts/make_sample_clip.py, so kept out of history.
 /reports/samples/

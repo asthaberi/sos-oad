@@ -250,7 +250,7 @@ run log rather than pretending.
 | 0 | Repo + canonical format + config system | Schema validator passes on a synthetic fixture | **DONE** |
 | 1 | Acquire IPN Hand, write adapter | Published figures reproduced (see below) | **DONE** |
 | 2 | Frozen subject-disjoint splits + LOSGO | Unit test: no `subject_id` in >1 split | **DONE** |
-| 3 | Feature extraction, 2 streams, cached | All 200 videos cached, shapes verified | **in progress** — RGB stream (VideoMAEv2-B) extracted and verified, `STAGE 3 GATE: PASS` 2026-10-04; pose stream (RTMW) implemented and tested, extraction pending |
+| 3 | Feature extraction, 2 streams, cached | All 200 videos cached, shapes verified | **DONE** — both streams `STAGE 3 GATE: PASS` (RGB 2026-10-04, pose 2026-10-05); strict validation passes; awaiting the author's review before Stage 4 |
 | 4 | Baselines B0 + B1 + **full** eval harness | Both baselines produce the complete metric set | not started |
 | 5 | M1 model | — | not started |
 | 6 | Online decision layer | — | not started |
@@ -444,6 +444,31 @@ joint order, x/y in **source-frame pixels**. Code: `src/features/backbones/rtmw.
   wholesale. It now rewrites only the keys it owns.
 - **Concurrent shards are safe.** `record_cache` merges under a lock file (`meta.yaml.lock`), so
   several `--shard i/n` processes can share the GPU without dropping each other's digests.
+
+### Stage 3b — pose stream extracted and verified (2026-10-05)
+
+**`STAGE 3 GATE: PASS`** for the pose stream: 200 videos, 0 missing, 0 checksum problems. With
+both streams in place, the dataset validates with **poses, features and splits all required —
+PASS, 0 errors, 0 warnings**, the first fully strict pass.
+
+- **Runs:** `runs/20261004-182201-stage3-rtmw` (2-video probe) and four shard runs
+  `runs/20261005-0155*` … `20261005-0212*`, together 800,491 frames. The cache records commit
+  `bcdfb4c`, clean.
+- **`frames_without_detection` is 0 in every run**, and every frame seen was 320×240. A detection
+  in every frame is not the right person in every frame: selection is the largest box per frame,
+  and 14 of the 50 subjects have videos with more than one person in view. How often the selected
+  person switches has not been measured.
+- **Four processes are not four times one.** One process ran at 21.4 frames/s on the probe; four
+  together ran at ~7.2 each (~28.7 combined), about 1.35× a single process, because they contend
+  for the one shared GPU.
+
+**The validation ratchet is not yet flipped in config.** The strict pass above was run with
+explicit `--require-poses --require-features --require-splits`; `validation.require_poses` and
+`validation.require_features` in `configs/base.yaml` are still `false`. Flipping them globally is
+not a one-line change: `prepare_ipn_hand.py` and `make_splits.py` read those same flags, and when
+the pipeline is replayed on a fresh machine they run *before* any features exist, so Stage 1 and 2
+would then fail. Those scripts need to validate against their own stage's requirements before the
+global flags can go on. Open item for Stage 4.
 
 ### Stage 3 — backbone preference order
 
