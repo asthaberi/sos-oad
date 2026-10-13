@@ -106,7 +106,8 @@ def main() -> int:
         report = C.validate_dataset(
             root,
             check_arrays=bool(cfg.validation.check_arrays),
-            require_features=bool(cfg.validation.require_features),
+            # Stage 2's own requirements (see prepare_ipn_hand.py): splits, not features.
+            require_features=False,
             require_splits=True,
         )
         print(report.render())
@@ -161,7 +162,7 @@ def main() -> int:
     report = C.validate_dataset(
         root,
         check_arrays=bool(cfg.validation.check_arrays),
-        require_features=bool(cfg.validation.require_features),
+        require_features=False,  # Stage 2's own requirements, not the global ratchet
         require_splits=not args.no_apply,
     )
     print(report.render())

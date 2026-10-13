@@ -1,0 +1,11 @@
+# B0: per-frame classifier (src/models/baselines.py). No memory: the floor M1 must clear.
+name: b0
+kind: b0
+hidden: 512
+dropout: 0.3
+lr: 1.0e-3
+weight_decay: 1.0e-4
+epochs: 20
+batch_size: 1024
+eval_batch_size: 512
+selection_metric: mcAP   # chosen on validation only

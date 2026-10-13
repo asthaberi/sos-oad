@@ -8,6 +8,7 @@ defaults:
   dataset: synthetic      # switch to `ipn_hand` at Stage 1
   split: generated        # switch to `ipn_official` alongside `dataset=ipn_hand`
   features: projection    # switch to `videomaev2` where there is a GPU
+  model: b0               # b0 | b1 (Stage 4 baselines)
 
 project: sos-oad
 run_name: null            # null -> the script names the run
@@ -41,10 +42,35 @@ logging:
   tags: []
   log_every_n_steps: 20
 
+# What the models see (src/data/datasets.py). Both streams for the baselines, so that the
+# comparison with the two-stream M1 is on equal inputs. Standardisation statistics are
+# fitted on the training split only and stored with the model.
+inputs:
+  streams: [features, poses]
+
+# The evaluation harness (src/eval). One implementation scores every method.
+eval:
+  # Which classes count as signals for mAP and the alarm metrics. null = every class but
+  # `none`. A list of class names restricts them.
+  signals: null
+  # The Stage 4 alarm rule fires when the top class switches into a signal class with at
+  # least this probability. Fixed, not tuned per method; the full curve is swept anyway.
+  threshold: 0.5
+  # An alarm can claim a true gesture from `pre_s` before its annotated onset (onsets are
+  # fuzzy by ~0.3 s) to `post_s` after its end (a late alarm still answers that gesture,
+  # and its delay is measured, not hidden).
+  match_pre_s: 0.5
+  match_post_s: 1.0
+  # Point-level (ODAS) start tolerances, seconds.
+  point_tolerances_s: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+  # Split scored at the gate. The test split is touched once, at final reporting.
+  split: val
+
 # Validation strictness. These tighten as stages land, rather than being relaxed later
 # to make a failing dataset pass.
 validation:
   check_arrays: true     # load every .npy to verify shape, dtype, finiteness
-  require_poses: false    # Stage 3 turns this on
+  require_poses: true     # on since Stage 4: both streams cached and verified (2026-10-05)
   require_splits: true    # Stage 2 landed and turned this on
-  require_features: false # Stage 3 turns this on, once the feature cache exists
+  require_features: true  # on since Stage 4. Stage 1 and 2 scripts validate against their
+                          # own stage's needs, so replaying them on a fresh machine still works

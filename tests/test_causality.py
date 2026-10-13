@@ -15,8 +15,10 @@ builds deliberately non-causal modules -- a centred snippet, an end-anchored gri
 interpolation -- and asserts the harness **rejects** each one. Those negative controls are
 the reason to believe the positive results.
 
-Currently covered: the Stage 3 snippet scheduler and per-frame expansion. Stage 5's causal
-GRU and Stage 6's decision layer add their cases here as they land.
+Currently covered: the Stage 3 snippet scheduler and per-frame expansion, the pose stream,
+and the Stage 4 baselines B0 and B1 (with a centred-window B1 as their negative control).
+The Stage 4 alarm rule's truncation test sits with the metrics in tests/test_eval.py.
+Stage 5's causal GRU and Stage 6's decision layer add their cases here as they land.
 """
 
 from __future__ import annotations
@@ -487,3 +489,78 @@ def test_pose_backbone_estimates_only_the_current_frame(source):
     per_frame = pose_extractor().extract(source)
     with_history = pose_extractor(length=4, stride=1).extract(source)
     assert np.array_equal(per_frame, with_history)
+
+
+# ----------------------------------------------------------------------------------
+# Stage 4 baselines: B0 (per frame) and B1 (backward-looking sliding window)
+# ----------------------------------------------------------------------------------
+
+
+def _baseline_inputs(frames: int = 211, dim: int = 7) -> np.ndarray:
+    rng = np.random.default_rng(3)
+    x = rng.normal(size=(frames, dim)).astype(np.float32)
+    x[:, 0] = np.arange(frames, dtype=np.float32) / frames  # per-frame fingerprint
+    return x
+
+
+def _b0():
+    import torch
+
+    from src.models.baselines import FrameMLP
+
+    torch.manual_seed(0)
+    return FrameMLP(7, 4, hidden=16, dropout=0.0)
+
+
+def _b1():
+    import torch
+
+    from src.models.baselines import WindowMLP
+
+    torch.manual_seed(0)
+    return WindowMLP(7, 4, hidden=16, dropout=0.0)
+
+
+@pytest.mark.parametrize("prefix", [1, 2, 14, 15, 16, 59, 60, 61, 150, 210])
+def test_b0_truncated_is_bit_identical(prefix):
+    from src.models.baselines import predict_frames
+
+    x, model = _baseline_inputs(), _b0()
+    full = predict_frames(model, x, device="cpu", batch_size=64)
+    part = predict_frames(model, x[:prefix], device="cpu", batch_size=64)
+    assert np.array_equal(full[:prefix], part)
+
+
+# Prefixes straddle the 15-frame stride and the 60-frame window: 14/15/16 and 59/60/61.
+@pytest.mark.parametrize("prefix", [1, 2, 14, 15, 16, 59, 60, 61, 150, 210])
+@pytest.mark.parametrize("batch_size", [1, 8, 64])
+def test_b1_truncated_is_bit_identical(prefix, batch_size):
+    from src.models.baselines import predict_windows
+
+    x, model = _baseline_inputs(), _b1()
+    kw = dict(length=60, stride=15, device="cpu", batch_size=batch_size)
+    full = predict_windows(model, x, **kw)
+    part = predict_windows(model, x[:prefix], **kw)
+    assert np.array_equal(full[:prefix], part), f"prefix={prefix}"
+
+
+def test_a_centred_window_b1_is_rejected():
+    """Negative control: the same B1 model, but each window centred on its frame, as an
+    offline sliding window would be. It reads 30 frames ahead; the test must catch it."""
+    import torch
+
+    from src.models.baselines import _run_padded
+
+    x, model = _baseline_inputs(), _b1()
+
+    def centred(inputs: np.ndarray) -> np.ndarray:
+        n = inputs.shape[0]
+        ends = causal.snippet_ends(n, 15)
+        idx = np.clip(ends[:, None] - 30 + np.arange(60)[None, :], 0, n - 1)
+        xt = torch.from_numpy(inputs)
+        logits = _run_padded(lambda b: model(xt[b]), torch.from_numpy(idx), 8)
+        return causal.hold_last(torch.softmax(logits, 1).numpy(), ends, n)
+
+    full = centred(x)
+    mismatched = [t for t in (16, 61, 150) if not np.array_equal(full[:t], centred(x[:t]))]
+    assert mismatched, "a centred window passed the truncation test but should not have"

@@ -25,3 +25,9 @@ gesture_duration: [30, 90]
 min_gap: 20
 noise: 0.6
 seed: 1337
+
+# The fixture's 5 synthetic joints have no anatomy; joints 0 and 1 stand in for the pair.
+pose_normalisation:
+  root_joints: [0, 1]
+  scale_joints: [0, 1]
+  min_scale: 1.0e-6

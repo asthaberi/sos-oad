@@ -87,3 +87,12 @@ source:
   metadata_file: annotations/metadata.csv
   class_index_file: annotations/classIdx.txt
   frames_dir: frames            # frames/<video_id>/<video_id>_%06d.jpg, Stage 3 reads it
+
+# Per-frame pose normalisation for the model inputs (src/data/datasets.py). Joint indices
+# are COCO-WholeBody, the format of the RTMW pose cache: 5 = left shoulder, 6 = right
+# shoulder. IPN subjects are seated and framed from the chest up, so the hips (11, 12) are
+# often out of view; the shoulders are the most reliably visible pair.
+pose_normalisation:
+  root_joints: [5, 6]     # origin = shoulder midpoint
+  scale_joints: [5, 6]    # unit = shoulder width
+  min_scale: 1.0          # pixels; below this a frame's pose is treated as absent

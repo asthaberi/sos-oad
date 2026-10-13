@@ -240,10 +240,13 @@ def main() -> int:
         AdapterConfig(source_root=raw_root, output_root=out_root, options=options)
     )
     log.info("converting %s -> %s", raw_root, out_root)
-    # Features arrive at Stage 3; until then the dataset is annotation-only and says so.
+    # Stage 1 validates against Stage 1's requirements, not the global ratchet. Features
+    # arrive at Stage 3, and replaying the pipeline on a fresh machine runs this before any
+    # exist; reading validation.require_features here would make Stage 1 fail there once
+    # Stage 3 turned that flag on. Stages that consume features check them themselves.
     report = adapter.convert(
         check_arrays=bool(cfg.validation.check_arrays),
-        require_features=bool(cfg.validation.require_features),
+        require_features=False,
     )
 
     computed = dict(adapter._stats)  # noqa: SLF001 - the adapter is the one that counted

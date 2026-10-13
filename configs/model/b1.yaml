@@ -1,0 +1,15 @@
+# B1: sliding-window classifier, the supervisor's proposed approach, built honestly.
+# A backward-looking window of window_s seconds, evaluated every stride_s seconds on a grid
+# anchored at frame 0, prediction held in between (src/models/baselines.py).
+name: b1
+kind: b1
+window_s: 2.0           # CLAUDE.md, Stage 4
+stride_s: 0.5
+hidden: 512
+dropout: 0.3
+lr: 1.0e-3
+weight_decay: 1.0e-4
+epochs: 20
+batch_size: 1024
+eval_batch_size: 512
+selection_metric: mcAP   # chosen on validation only
